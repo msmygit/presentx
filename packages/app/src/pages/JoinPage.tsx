@@ -28,6 +28,7 @@ function JoinPage() {
     }
 
     try {
+      // Use the same base URL that we're using for socket connections
       const response = await fetch(`http://localhost:8080/api/presentations/join?access_code=${trimmedCode}`);
 
       if (response.status === 404) {

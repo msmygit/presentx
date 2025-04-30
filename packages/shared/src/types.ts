@@ -20,6 +20,7 @@ export interface Page {
   page_id: string; // Unique within the presentation
   page_order: number;
   page_type: PageType;
+  status: 'active' | 'skipped'; // New status field
   page_title?: string;
   page_config: PageConfig; // Type-specific configuration
   audience_response_count: number; // Denormalized total responses for this page
@@ -30,18 +31,20 @@ export interface Page {
 export type PageType =
   | 'multi-choice'
   | 'poll' // Similar to multi-choice, maybe simpler config
-  | 'word-cloud'
-  | 'open-text'
-  | 'rating'
-  | 'q&a'; // Placeholder for question/answer type
+  | 'open-ended' // Renamed from open-text for clarity
+  | 'scales' // New type
+  | 'ranking' // New type
+  | 'word-cloud' // Kept
+  | 'q&a'; // Placeholder kept for future
 
 // Type-specific configurations for pages
 export type PageConfig =
   | MultiChoiceConfig
   | PollConfig
+  | OpenEndedConfig // Renamed
+  | ScalesConfig // New
+  | RankingConfig // New
   | WordCloudConfig
-  | OpenTextConfig
-  | RatingConfig
   | QnAConfig;
 
 export interface MultiChoiceConfig {
@@ -55,21 +58,27 @@ export interface PollConfig {
   options: string[];
 }
 
+export interface OpenEndedConfig {
+  question: string;
+  max_length?: number;
+}
+
+export interface ScalesConfig {
+  question: string;
+  scale_min: number; // e.g., 1
+  scale_max: number; // e.g., 5
+  label_min?: string; // e.g., 'Strongly Disagree'
+  label_max?: string; // e.g., 'Strongly Agree'
+}
+
+export interface RankingConfig {
+  question: string;
+  items: string[]; // The items to be ranked
+}
+
 export interface WordCloudConfig {
   question: string;
   max_length?: number;
-}
-
-export interface OpenTextConfig {
-  question: string;
-  max_length?: number;
-}
-
-export interface RatingConfig {
-  question: string;
-  scale: number; // e.g., 5 for a 1-5 star rating
-  label_low?: string; // e.g., 'Bad'
-  label_high?: string; // e.g., 'Good'
 }
 
 export interface QnAConfig {
@@ -80,9 +89,10 @@ export interface QnAConfig {
 // Type-specific summary data stored within the Page object
 export type AudienceSummary =
   | MultiChoiceSummary
+  | OpenEndedSummary // Renamed
+  | ScalesSummary // New
+  | RankingSummary // New
   | WordCloudSummary
-  | OpenTextSummary // Might just be count or empty
-  | RatingSummary
   | QnASummary;
 
 // Key is the option text, value is the count
@@ -94,13 +104,22 @@ export interface WordCloudSummary {
   // all_words?: Record<string, number>;
 }
 
-// Open text might not have a visual summary beyond the count
-export type OpenTextSummary = Record<string, never>; // Empty object
+// Open ended might just store a sample of responses, or just the count
+export interface OpenEndedSummary {
+  response_count: number;
+  sample_responses?: string[]; // Store maybe the latest N responses?
+}
 
-// Key is the rating number (as string), value is the count
-export interface RatingSummary {
+// New Summaries
+export interface ScalesSummary {
   average?: number;
   counts: Record<string, number>; // e.g., { "1": 10, "2": 15, "3": 50, "4": 20, "5": 5 }
+}
+
+// Ranking summary could show average rank or most common rankings
+export interface RankingSummary {
+  item_average_ranks?: Record<string, number>; // Key is item text, value is avg rank (1 is highest)
+  most_common_rankings?: { ranking: string[], count: number }[]; // E.g. [{ ranking: ['Item A', 'Item C', 'Item B'], count: 15 }]
 }
 
 // Summary for Q&A might involve counts or top questions

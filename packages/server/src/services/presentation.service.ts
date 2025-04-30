@@ -122,6 +122,7 @@ export async function addPageToPresentation(
     page_id: uuidv4(),
     page_order: pageInput.page_order,
     page_type: pageInput.page_type,
+    status: 'active', // Default new pages to active
     page_title: pageInput.page_title || '',
     page_config: pageInput.page_config,
     audience_response_count: 0,
@@ -200,26 +201,36 @@ export async function updatePresentationState(
   return result;
 }
 
-// Function for presenter to change the current page
-export async function setCurrentPage(
+// Function for presenter to change the current page (audience view)
+export async function setCurrentAudiencePage(
   presentationId: string,
-  pageId: string | null // Allow setting to null (e.g., before start/after end)
+  pageId: string | null // Allow setting to null
 ): Promise<Presentation | null> {
   const collection = getPresentationsCollection();
 
-  // Optional: Validate pageId exists within the presentation
-  if (pageId) {
-      const presentation = await collection.findOne({
-          presentation_id: presentationId,
-          'pages.page_id': pageId
-      });
-      if (!presentation) {
-          throw new Error(`Page ${pageId} not found in presentation ${presentationId}`);
-      }
+  // First check if the presentation exists and is active using the correct _id
+  const presentationCheck = await collection.findOne({ _id: presentationId });
+  if (!presentationCheck) {
+    throw new Error(`Presentation ${presentationId} not found`);
+  }
+  
+  if (presentationCheck.state !== 'active') {
+    throw new Error(`Cannot change active page: Presentation must be in 'active' state (current: ${presentationCheck.state})`);
+  }
+
+  // Validate pageId exists within the presentation if it's not null
+  if (pageId !== null) {
+    const pageExists = presentationCheck.pages.some((page: Page) => page.page_id === pageId);
+    if (!pageExists) {
+      throw new Error(`Page ${pageId} not found in presentation ${presentationId}`);
+    }
+    if (pageExists && pageExists.status === 'skipped') {
+        throw new Error(`Cannot set audience view to a skipped page (Page ID: ${pageId})`);
+    }
   }
 
   const result = await collection.findOneAndUpdate(
-    { presentation_id: presentationId },
+    { _id: presentationId }, // Query using _id here as well
     {
       $set: {
         current_page_id: pageId,
@@ -229,7 +240,7 @@ export async function setCurrentPage(
     { returnDocument: 'after' }
   );
 
-  // Broadcast the change
+  // Broadcast the change using the presentation's _id
   if (result) {
     broadcastPageChange(presentationId, pageId);
   }
@@ -251,13 +262,16 @@ export async function deletePageFromPresentation(
         throw new Error('Presentation not found.');
     }
 
-    // 2. Check ownership and state
+    // 2. Check ownership and state (Allow deletion in active state as per new requirement)
     if (presentation.presenter_id !== userId) {
         throw new Error('Forbidden: User does not own this presentation.');
     }
+    // Remove or modify the state check if deleting is now allowed in active state
+    /*
     if (presentation.state !== 'draft') {
         throw new Error('Cannot delete pages unless presentation is in draft state.');
     }
+    */
 
     // 3. Check if page exists before attempting pull
     const pageExists = presentation.pages.some((p: Page) => p.page_id === pageId);
@@ -315,13 +329,16 @@ export async function updatePageInPresentation(
         throw new Error('Presentation not found.');
     }
 
-    // 2. Check ownership and state
+    // 2. Check ownership and state (Allow editing in active state as per new requirement)
     if (presentation.presenter_id !== userId) {
         throw new Error('Forbidden: User does not own this presentation.');
     }
+    // Remove or modify the state check if editing is now allowed in active state
+    /* 
     if (presentation.state !== 'draft') {
         throw new Error('Cannot edit pages unless presentation is in draft state.');
     }
+    */
 
     // 3. Find the index of the page to update
     const pageIndex = presentation.pages.findIndex((p: Page) => p.page_id === pageId);
@@ -353,6 +370,82 @@ export async function updatePageInPresentation(
     if (!updateResult) {
         // Should not happen if presentation was found initially
         throw new Error('Failed to update presentation after page update.');
+    }
+
+    return updateResult;
+}
+
+// --- New Service: Update Page Status ---
+export async function updatePageStatus(
+    presentationId: string,
+    pageId: string,
+    userId: string, // For ownership check
+    newStatus: 'active' | 'skipped'
+): Promise<Presentation | null> {
+    const collection = getPresentationsCollection();
+
+    // Find the presentation and check ownership
+    const presentation = await collection.findOne({ _id: presentationId });
+    if (!presentation) {
+        throw new Error('Presentation not found.');
+    }
+    if (presentation.presenter_id !== userId) {
+        throw new Error('Forbidden: User does not own this presentation.');
+    }
+
+    // Find the index of the page to update
+    const pageIndex = presentation.pages.findIndex((p: Page) => p.page_id === pageId);
+    if (pageIndex === -1) {
+        throw new Error('Page not found within the presentation.');
+    }
+
+    // Update the status in the pages array
+    const updatedPages = [...presentation.pages];
+    updatedPages[pageIndex] = { ...updatedPages[pageIndex], status: newStatus };
+
+    // Update the document in the database
+    const updateResult = await collection.findOneAndUpdate(
+        { _id: presentationId },
+        { $set: { pages: updatedPages, updated_at: new Date().toISOString() } },
+        { returnDocument: 'after' } // Return the updated document
+    );
+
+    if (!updateResult) {
+        throw new Error('Failed to update presentation after page status update.');
+    }
+
+    return updateResult;
+}
+
+// --- New Service: Set Status for All Pages ---
+export async function setAllPagesStatus(
+    presentationId: string,
+    userId: string, // For ownership check
+    newStatus: 'active' | 'skipped'
+): Promise<Presentation | null> {
+    const collection = getPresentationsCollection();
+
+    // Find the presentation and check ownership
+    const presentation = await collection.findOne({ _id: presentationId });
+    if (!presentation) {
+        throw new Error('Presentation not found.');
+    }
+    if (presentation.presenter_id !== userId) {
+        throw new Error('Forbidden: User does not own this presentation.');
+    }
+
+    // Create the updated pages array with the new status
+    const updatedPages = presentation.pages.map((p: Page) => ({ ...p, status: newStatus }));
+
+    // Update the document in the database
+    const updateResult = await collection.findOneAndUpdate(
+        { _id: presentationId },
+        { $set: { pages: updatedPages, updated_at: new Date().toISOString() } },
+        { returnDocument: 'after' } // Return the updated document
+    );
+
+    if (!updateResult) {
+        throw new Error('Failed to update presentation after setting all page statuses.');
     }
 
     return updateResult;

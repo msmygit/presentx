@@ -1,91 +1,835 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Presentation, Page, PageType } from '@presentx/shared';
+import { Presentation, Page, PageType, AudienceSummary } from '@presentx/shared';
 import Header from '@/components/Header';
 import { useTheme } from '@/store/themeStore';
+import { ArrowLeft, ArrowRight, Maximize2, X } from 'lucide-react';
 
 // --- Helper Components ---
 
-// Page Configuration Form (Placeholder for now)
+// --- Type-Specific Config Input Components ---
+
+interface ConfigInputProps<T> {
+    config: T;
+    onChange: (newConfig: Partial<T>) => void;
+}
+
+const commonInputClass = "mt-1 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm";
+const commonLabelClass = "block text-sm text-gray-700 dark:text-gray-300";
+
+const MultiChoiceConfigInputs: React.FC<ConfigInputProps<MultiChoiceConfig>> = ({ config, onChange }) => {
+    const handleOptionChange = (index: number, value: string) => {
+        const newOptions = [...(config.options || [])];
+        newOptions[index] = value;
+        onChange({ options: newOptions });
+    };
+
+    const addOption = () => onChange({ options: [...(config.options || []), ''] });
+    const removeOption = (index: number) => onChange({ options: (config.options || []).filter((_, i) => i !== index) });
+
+    return (
+        <>
+            <div>
+                <label className={commonLabelClass}>Question:</label>
+                <input
+                    type="text"
+                    value={config.question || ''}
+                    onChange={e => onChange({ question: e.target.value })}
+                    required
+                    className={commonInputClass}
+                />
+            </div>
+            <div>
+                <label className={commonLabelClass}>Options:</label>
+                {(config.options || []).map((opt, i) => (
+                    <div key={i} className="flex items-center mb-1 space-x-2">
+                         <input
+                            key={i}
+                            type="text"
+                            value={opt}
+                            onChange={e => handleOptionChange(i, e.target.value)}
+                            placeholder={`Option ${i + 1}`}
+                            className={`${commonInputClass} flex-grow`}
+                        />
+                         { (config.options || []).length > 1 && ( // Show remove button only if more than 1 option
+                            <button type="button" onClick={() => removeOption(i)} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-500 text-xs">Remove</button>
+                         )}
+                    </div>
+                ))}
+                <button type="button" onClick={addOption} className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-1">+ Add Option</button>
+            </div>
+            <div className="flex items-center">
+                 <input 
+                    type="checkbox" 
+                    id="allow_multiple" 
+                    checked={config.allow_multiple || false} 
+                    onChange={e => onChange({ allow_multiple: e.target.checked })} 
+                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600" 
+                 />
+                 <label htmlFor="allow_multiple" className={`${commonLabelClass} ml-2`}>Allow multiple selections</label>
+             </div>
+        </>
+    );
+};
+
+const PollConfigInputs: React.FC<ConfigInputProps<PollConfig>> = ({ config, onChange }) => {
+     const handleOptionChange = (index: number, value: string) => {
+        const newOptions = [...(config.options || [])];
+        newOptions[index] = value;
+        onChange({ options: newOptions });
+    };
+
+    const addOption = () => onChange({ options: [...(config.options || []), ''] });
+     const removeOption = (index: number) => onChange({ options: (config.options || []).filter((_, i) => i !== index) });
+
+    return (
+        <>
+            <div>
+                <label className={commonLabelClass}>Question:</label>
+                <input
+                    type="text"
+                    value={config.question || ''}
+                    onChange={e => onChange({ question: e.target.value })}
+                    required
+                    className={commonInputClass}
+                />
+            </div>
+            <div>
+                <label className={commonLabelClass}>Options:</label>
+                {(config.options || []).map((opt, i) => (
+                     <div key={i} className="flex items-center mb-1 space-x-2">
+                        <input
+                            key={i}
+                            type="text"
+                            value={opt}
+                            onChange={e => handleOptionChange(i, e.target.value)}
+                            placeholder={`Option ${i + 1}`}
+                            className={`${commonInputClass} flex-grow`}
+                        />
+                         { (config.options || []).length > 1 && (
+                            <button type="button" onClick={() => removeOption(i)} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-500 text-xs">Remove</button>
+                         )}
+                    </div>
+                ))}
+                <button type="button" onClick={addOption} className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-1">+ Add Option</button>
+            </div>
+        </>
+    );
+};
+
+
+const OpenEndedConfigInputs: React.FC<ConfigInputProps<OpenEndedConfig>> = ({ config, onChange }) => {
+    return (
+        <>
+            <div>
+                <label className={commonLabelClass}>Question/Prompt:</label>
+                <input
+                    type="text"
+                    value={config.question || ''}
+                    onChange={e => onChange({ question: e.target.value })}
+                    required
+                    className={commonInputClass}
+                />
+            </div>
+            <div>
+                <label className={commonLabelClass}>Max Answer Length (Optional):</label>
+                <input
+                    type="number"
+                    value={config.max_length ?? ''}
+                    onChange={e => onChange({ max_length: e.target.value ? parseInt(e.target.value) : undefined })}
+                    min="1"
+                    className={commonInputClass}
+                />
+            </div>
+        </>
+    );
+};
+
+const ScalesConfigInputs: React.FC<ConfigInputProps<ScalesConfig>> = ({ config, onChange }) => {
+    return (
+        <>
+            <div>
+                <label className={commonLabelClass}>Statement/Question:</label>
+                <input
+                    type="text"
+                    value={config.question || ''}
+                    onChange={e => onChange({ question: e.target.value })}
+                    required
+                    className={commonInputClass}
+                />
+            </div>
+            <div className="flex space-x-4">
+                <div className="flex-1">
+                    <label className={commonLabelClass}>Min Scale Value:</label>
+                    <input
+                        type="number"
+                        value={config.scale_min ?? 1}
+                        onChange={e => onChange({ scale_min: parseInt(e.target.value) || 0 })}
+                        required
+                        className={commonInputClass}
+                    />
+                </div>
+                <div className="flex-1">
+                    <label className={commonLabelClass}>Max Scale Value:</label>
+                    <input
+                        type="number"
+                        value={config.scale_max ?? 5}
+                        onChange={e => onChange({ scale_max: parseInt(e.target.value) || 0 })}
+                        required
+                        min={(config.scale_min ?? 0) + 1}
+                        className={commonInputClass}
+                    />
+                </div>
+            </div>
+            <div className="flex space-x-4">
+                <div className="flex-1">
+                    <label className={commonLabelClass}>Min Label (Optional):</label>
+                    <input
+                        type="text"
+                        value={config.label_min || ''}
+                        onChange={e => onChange({ label_min: e.target.value })}
+                        placeholder="e.g., Strongly Disagree"
+                        className={commonInputClass}
+                    />
+                </div>
+                <div className="flex-1">
+                    <label className={commonLabelClass}>Max Label (Optional):</label>
+                    <input
+                        type="text"
+                        value={config.label_max || ''}
+                        onChange={e => onChange({ label_max: e.target.value })}
+                        placeholder="e.g., Strongly Agree"
+                        className={commonInputClass}
+                    />
+                </div>
+            </div>
+        </>
+    );
+};
+
+
+const RankingConfigInputs: React.FC<ConfigInputProps<RankingConfig>> = ({ config, onChange }) => {
+    const handleItemChange = (index: number, value: string) => {
+        const newItems = [...(config.items || [])];
+        newItems[index] = value;
+        onChange({ items: newItems });
+    };
+
+    const addItem = () => onChange({ items: [...(config.items || []), ''] });
+    const removeItem = (index: number) => onChange({ items: (config.items || []).filter((_, i) => i !== index) });
+
+    return (
+        <>
+            <div>
+                <label className={commonLabelClass}>Question/Instruction:</label>
+                <input
+                    type="text"
+                    value={config.question || ''}
+                    onChange={e => onChange({ question: e.target.value })}
+                    required
+                    placeholder="e.g., Rank these features by importance"
+                    className={commonInputClass}
+                />
+            </div>
+            <div>
+                <label className={commonLabelClass}>Items to Rank:</label>
+                {(config.items || []).map((item, i) => (
+                    <div key={i} className="flex items-center mb-1 space-x-2">
+                        <input
+                            type="text"
+                            value={item}
+                            onChange={e => handleItemChange(i, e.target.value)}
+                            placeholder={`Item ${i + 1}`}
+                            className={`${commonInputClass} flex-grow`}
+                        />
+                        {(config.items || []).length > 2 && (
+                            <button type="button" onClick={() => removeItem(i)} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-500 text-xs">Remove</button>
+                        )}
+                    </div>
+                ))}
+                <button type="button" onClick={addItem} className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-1">+ Add Item</button>
+            </div>
+        </>
+    );
+};
+
+const WordCloudConfigInputs: React.FC<ConfigInputProps<WordCloudConfig>> = ({ config, onChange }) => {
+     return (
+        <>
+            <div>
+                <label className={commonLabelClass}>Question/Prompt:</label>
+                <input
+                    type="text"
+                    value={config.question || ''}
+                    onChange={e => onChange({ question: e.target.value })}
+                    required
+                    className={commonInputClass}
+                />
+            </div>
+            <div>
+                <label className={commonLabelClass}>Max Word Length (Optional):</label>
+                <input
+                    type="number"
+                    value={config.max_length ?? ''}
+                    onChange={e => onChange({ max_length: e.target.value ? parseInt(e.target.value) : undefined })}
+                    min="1"
+                    className={commonInputClass}
+                />
+            </div>
+        </>
+    );
+};
+
+// --- Refactored Page Configuration Form ---
+import { 
+    MultiChoiceConfig, PollConfig, OpenEndedConfig, ScalesConfig, RankingConfig, WordCloudConfig, QnAConfig, PageConfig // Import specific config types
+} from '@presentx/shared';
+
 const PageConfigForm = ({ type, onSubmit, initialConfig }: { 
-    type: string; 
-    onSubmit: (config: any) => void; 
-    initialConfig?: any; // Add optional initialConfig prop
+    type: PageType | ''; // Use PageType union
+    onSubmit: (config: PageConfig) => void; 
+    initialConfig?: PageConfig; 
 }) => {
-    // Simple example for multi-choice
-    if (type === 'multi-choice') {
-        const [question, setQuestion] = useState('');
-        const [options, setOptions] = useState<string[]>(['', '']);
+    const [config, setConfig] = useState<Partial<PageConfig>>({}); // Use Partial for intermediate state
 
-        // Effect to initialize state from initialConfig
-        useEffect(() => {
-            if (initialConfig && typeof initialConfig === 'object') {
-                setQuestion(initialConfig.question || '');
-                setOptions(Array.isArray(initialConfig.options) ? initialConfig.options : ['', '']);
-            } else {
-                // Reset if no initial config or invalid type
-                setQuestion('');
-                setOptions(['', '']);
+    // Initialize/reset state when type or initialConfig changes
+    useEffect(() => {
+        console.log("PageConfigForm useEffect triggered. Type:", type, "Initial Config:", initialConfig);
+        let initial: Partial<PageConfig> = {};
+        if (initialConfig && type && initialConfig) {
+             // Only apply initialConfig if it matches the current type (basic check)
+             // More robust checking might be needed depending on how initialConfig is passed
+             // For simplicity, we assume initialConfig is valid for the given type if provided.
+             initial = { ...initialConfig };
+             console.log("Applying initial config:", initial);
+        } else {
+             console.log("Resetting config for type:", type);
+             // Set defaults based on type when creating new or type changes
+             switch(type) {
+                 case 'multi-choice': initial = { question: '', options: ['', ''], allow_multiple: false }; break;
+                 case 'poll': initial = { question: '', options: ['', ''] }; break;
+                 case 'open-ended': initial = { question: '', max_length: undefined }; break;
+                 case 'scales': initial = { question: '', scale_min: 1, scale_max: 5, label_min: '', label_max: '' }; break;
+                 case 'ranking': initial = { question: '', items: ['', ''] }; break;
+                 case 'word-cloud': initial = { question: '', max_length: undefined }; break;
+                 case 'q&a': initial = { allow_anonymous_questions: true, allow_upvotes: true }; break; // Example defaults
+                 default: initial = {}; 
+             }
+             console.log("Default config set:", initial);
+        }
+        setConfig(initial);
+    }, [type, initialConfig]); // Rerun effect if type or initialConfig changes
+
+    // Handler to update parts of the config state
+    const handleConfigChange = (newConfigPart: Partial<PageConfig>) => {
+        setConfig(prevConfig => ({ ...prevConfig, ...newConfigPart }));
+    };
+
+    // Handle form submission
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        console.log('PageConfigForm: handleSubmit. Current config state:', config);
+        
+        // --- Data Validation & Cleanup ---
+        let finalConfig: PageConfig;
+
+        switch(type) {
+            case 'multi-choice': { // Use block scope for clarity
+                const currentConfig = config as Partial<MultiChoiceConfig>; // Assert partial type
+                const cleanedOptions = (currentConfig.options || []).filter((o: string) => o.trim() !== '');
+                if (!currentConfig.question?.trim()) { alert("Question is required."); return; }
+                if (cleanedOptions.length < 1) { alert("Multi-choice requires at least one valid option."); return; }
+                
+                finalConfig = { 
+                    question: currentConfig.question.trim(), 
+                    options: cleanedOptions,
+                    allow_multiple: currentConfig.allow_multiple || false,
+                } as MultiChoiceConfig; // Final assertion
+                break;
+             }
+             case 'poll': { 
+                const currentConfig = config as Partial<PollConfig>;
+                const cleanedOptions = (currentConfig.options || []).filter((o: string) => o.trim() !== '');
+                if (!currentConfig.question?.trim()) { alert("Question is required."); return; }
+                if (cleanedOptions.length < 1) { alert("Poll requires at least one valid option."); return; }
+
+                finalConfig = { 
+                    question: currentConfig.question.trim(), 
+                    options: cleanedOptions 
+                } as PollConfig;
+                break;
+             }
+            case 'open-ended': { 
+                 const currentConfig = config as Partial<OpenEndedConfig>;
+                 if (!currentConfig.question?.trim()) { alert("Question/Prompt is required."); return; }
+                 
+                 finalConfig = { 
+                    question: currentConfig.question.trim(), 
+                    max_length: currentConfig.max_length // Keep as undefined if not set
+                } as OpenEndedConfig;
+                break;
+             }
+             case 'scales': { 
+                 const currentConfig = config as Partial<ScalesConfig>;
+                 const scale_min = currentConfig.scale_min ?? 1;
+                 const scale_max = currentConfig.scale_max ?? 5;
+                 if (!currentConfig.question?.trim()) { alert("Question/Statement is required."); return; }
+                 if (scale_max <= scale_min) { alert("Max scale value must be greater than min scale value."); return; }
+
+                 finalConfig = { 
+                    question: currentConfig.question.trim(), 
+                    scale_min: scale_min, 
+                    scale_max: scale_max, 
+                    label_min: currentConfig.label_min?.trim() || undefined, 
+                    label_max: currentConfig.label_max?.trim() || undefined 
+                } as ScalesConfig;
+                break;
             }
-            // Run when initialConfig changes (e.g., modal opens with new page data)
-        }, [initialConfig]);
+            case 'ranking': {
+                const currentConfig = config as Partial<RankingConfig>;
+                const cleanedItems = (currentConfig.items || []).filter((i: string) => i.trim() !== '');
+                if (!currentConfig.question?.trim()) { alert("Question/Instruction is required."); return; }
+                if (cleanedItems.length < 2) { alert("Ranking requires at least two valid items."); return; }
 
-        const handleOptionChange = (index: number, value: string) => {
-            const newOptions = [...options];
-            newOptions[index] = value;
-            setOptions(newOptions);
-        };
+                finalConfig = { 
+                    question: currentConfig.question.trim(), 
+                    items: cleanedItems 
+                } as RankingConfig;
+                break;
+             }
+             case 'word-cloud': {
+                 const currentConfig = config as Partial<WordCloudConfig>;
+                 if (!currentConfig.question?.trim()) { alert("Question/Prompt is required."); return; }
 
-        const addOption = () => setOptions([...options, '']);
+                 finalConfig = { 
+                    question: currentConfig.question.trim(), 
+                    max_length: currentConfig.max_length // Keep as undefined if not set
+                } as WordCloudConfig;
+                break;
+            }
+            case 'q&a': {
+                 const currentConfig = config as Partial<QnAConfig>;
+                 // No specific required fields for Q&A currently
+                 finalConfig = { 
+                    allow_anonymous_questions: currentConfig.allow_anonymous_questions ?? true,
+                    allow_upvotes: currentConfig.allow_upvotes ?? true
+                 } as QnAConfig;
+                 break;
+            }
+            default:
+                console.error("PageConfigForm: Unknown type on submit:", type);
+                alert("Cannot save config: Unknown page type.");
+                return; // Don't submit if type is unknown
+        }
+        
+        console.log('PageConfigForm: Submitting final config:', finalConfig);
+        onSubmit(finalConfig); // Pass the validated & typed config up
+    };
 
-        const handleSubmit = (e: React.FormEvent) => {
-            console.log('PageConfigForm: internal handleSubmit triggered');
-            e.preventDefault();
-            onSubmit({ question, options: options.filter(o => o.trim() !== '') });
-        };
+    // --- Render Logic ---
+    const commonButtonClass = "px-3 py-1 text-white rounded";
+    const commonContainerClass = "space-y-3 p-4 border dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded";
+    const commonTitleClass = "font-medium text-gray-900 dark:text-white";
 
-        return (
-            <form onSubmit={handleSubmit} className="space-y-3 p-4 border bg-gray-50 rounded">
-                <h4 className="font-medium">Multi-Choice Config</h4>
-                <div>
-                    <label className="block text-sm">Question:</label>
-                    <input type="text" value={question} onChange={e => setQuestion(e.target.value)} required className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" />
-                </div>
-                <div>
-                    <label className="block text-sm">Options:</label>
-                    {options.map((opt, i) => (
-                        <input key={i} type="text" value={opt} onChange={e => handleOptionChange(i, e.target.value)} placeholder={`Option ${i + 1}`} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm mb-1" />
-                    ))}
-                    <button type="button" onClick={addOption} className="text-sm text-blue-600 hover:underline">+ Add Option</button>
-                </div>
-                <button type="submit" className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600">Save Page Config</button>
-            </form>
-        );
-    }
+    const renderInputs = () => {
+        switch(type) {
+            case 'multi-choice': return <MultiChoiceConfigInputs config={config as MultiChoiceConfig} onChange={handleConfigChange} />;
+            case 'poll':         return <PollConfigInputs config={config as PollConfig} onChange={handleConfigChange} />;
+            case 'open-ended':   return <OpenEndedConfigInputs config={config as OpenEndedConfig} onChange={handleConfigChange} />;
+            case 'scales':       return <ScalesConfigInputs config={config as ScalesConfig} onChange={handleConfigChange} />;
+            case 'ranking':      return <RankingConfigInputs config={config as RankingConfig} onChange={handleConfigChange} />;
+            case 'word-cloud':   return <WordCloudConfigInputs config={config as WordCloudConfig} onChange={handleConfigChange} />;
+            case 'q&a':          return <p className="text-sm text-gray-500 dark:text-gray-400">No specific configuration needed for Q&A page type currently.</p>; // Simple case
+            default:             return <p className="text-sm text-red-500">Please select a page type.</p>;
+        }
+    };
     
-    // Add forms for other types (open-text, poll, etc.) here
-    return <p className="text-sm text-gray-500 p-4 border bg-gray-50 rounded">Configuration form for '{type}' not implemented yet.</p>; 
+    // Don't render the form if no type is selected
+    if (!type) {
+        return null; 
+    }
+
+    // Render the form container and conditionally the inputs
+    return (
+        <form onSubmit={handleSubmit} className={commonContainerClass}>
+            <h4 className={commonTitleClass}>{type.replace('-', ' ').replace(/\\b\\w/g, l => l.toUpperCase())} Config</h4>
+            {renderInputs()}
+            {/* Render Save button only if it's not Q&A (which might not need saving) or other types without inputs */}
+            {type !== 'q&a' && ( 
+                 <button type="submit" className={`${commonButtonClass} bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700`}>
+                     Save Page Config
+                 </button>
+            )}
+        </form>
+    );
 };
 
 // --- Page Config Formatting Helper ---
 const FormattedPageConfig = ({ config, type }: { config: any, type: PageType }) => {
+    const textMutedClass = "text-gray-600 dark:text-gray-400 text-xs";
+    const textPrimaryClass = "text-gray-700 dark:text-gray-200";
+    const listClass = "list-disc list-inside pl-2";
+
     if (type === 'multi-choice' && config && config.question && Array.isArray(config.options)) {
         return (
             <div className="text-left">
-                <p className="font-medium text-gray-700">Q: {config.question}</p>
-                <ul className="list-disc list-inside text-gray-600 text-xs pl-2">
+                <p className={`font-medium ${textPrimaryClass}`}>Q: {config.question}</p>
+                <ul className={`${listClass} ${textMutedClass}`}>
                     {config.options.map((opt: string, i: number) => <li key={i}>{opt}</li>)}
                 </ul>
             </div>
         );
     }
-    // TODO: Add formatting for other types (poll, open-text, etc.)
     
+    if (type === 'poll' && config && config.question && Array.isArray(config.options)) {
+         return (
+            <div className="text-left">
+                <p className={`font-medium ${textPrimaryClass}`}>Poll: {config.question}</p>
+                <ul className={`${listClass} ${textMutedClass}`}>
+                    {config.options.map((opt: string, i: number) => <li key={i}>{opt}</li>)}
+                </ul>
+            </div>
+        );
+    }
+    
+    if (type === 'open-ended' && config && config.question) {
+         return (
+            <div className="text-left">
+                <p className={`font-medium ${textPrimaryClass}`}>Open-Ended: {config.question}</p>
+                {config.max_length && <p className={textMutedClass}>(Max Length: {config.max_length})</p>}
+            </div>
+        );
+    }
+    
+    if (type === 'scales' && config && config.question) {
+         return (
+            <div className="text-left">
+                <p className={`font-medium ${textPrimaryClass}`}>Scale: {config.question}</p>
+                 <p className={textMutedClass}>Range: {config.scale_min} ({config.label_min || 'Min'}) to {config.scale_max} ({config.label_max || 'Max'})</p>
+            </div>
+        );
+    }
+    
+    if (type === 'ranking' && config && config.question && Array.isArray(config.items)) {
+         return (
+            <div className="text-left">
+                <p className={`font-medium ${textPrimaryClass}`}>Rank: {config.question}</p>
+                <ul className={`${listClass} ${textMutedClass}`}>
+                    {config.items.map((item: string, i: number) => <li key={i}>{item}</li>)}
+                </ul>
+            </div>
+        );
+    }
+    
+    if (type === 'word-cloud' && config && config.question) {
+         return (
+            <div className="text-left">
+                <p className={`font-medium ${textPrimaryClass}`}>Word Cloud: {config.question}</p>
+                 {config.max_length && <p className={textMutedClass}>(Max Word Length: {config.max_length})</p>}
+            </div>
+        );
+    }
+    
+    if (type === 'q&a') {
+         return (
+             <div className="text-left">
+                <p className={`font-medium ${textPrimaryClass}`}>Q&A Session</p>
+                {/* Add details from config if any are added later */}
+             </div>
+         );
+    }
+
     // Fallback for other types or malformed config
     return (
-        <pre className="text-xs bg-gray-50 p-1 rounded border border-gray-200 overflow-x-auto">
+        <pre className="text-xs bg-gray-50 dark:bg-gray-800 dark:text-gray-300 p-1 rounded border border-gray-200 dark:border-gray-700 overflow-x-auto">
             {JSON.stringify(config, null, 2)}
         </pre>
+    );
+};
+
+// --- Fullscreen Presentation Component ---
+interface FullscreenPresentationProps {
+    presentationId: string; // Need the presentation ID for API calls
+    activePages: Page[]; // Receive only active pages
+    onClose: () => void;
+    initialPageIndex?: number;
+    onNavigate: (pageId: string | null) => Promise<void>; // Callback to update audience view
+}
+
+const FullscreenPresentation: React.FC<FullscreenPresentationProps> = ({
+    presentationId,
+    activePages,
+    onClose,
+    initialPageIndex = 0,
+    onNavigate,
+}) => {
+    const { isDarkMode } = useTheme();
+    const [currentPageIndex, setCurrentPageIndex] = useState(initialPageIndex);
+    const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+    const [summaryData, setSummaryData] = useState<AudienceSummary | null>(null);
+    const [errorSummary, setErrorSummary] = useState<string | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    
+    const currentPage = activePages[currentPageIndex] || null;
+    
+    // Set focus on the container to catch keyboard events
+    useEffect(() => {
+        if (containerRef.current) {
+            containerRef.current.focus();
+        }
+    }, []);
+
+    // Effect to update audience view and fetch summary when page changes
+    useEffect(() => {
+        const currentPageId = currentPage?.page_id ?? null;
+        
+        // Update audience view
+        onNavigate(currentPageId).catch(err => {
+            console.error("Error updating audience view:", err);
+            // Handle error display if needed
+        });
+        
+        // Fetch summary for the new current page
+        if (currentPageId) {
+            fetchSummary(currentPageId);
+        } else {
+            // If no current page (e.g., empty activePages list), clear summary
+            setSummaryData(null);
+            setErrorSummary(null);
+        }
+        // Depend only on the ID and the stable onNavigate function reference
+    }, [currentPage?.page_id, onNavigate]);
+    
+    const fetchSummary = async (pageId: string) => {
+        setIsLoadingSummary(true);
+        setErrorSummary(null);
+        setSummaryData(null); // Clear previous summary
+        try {
+            console.log(`TODO: Fetch summary for page ${pageId} from presentation ${presentationId}`);
+            // Example placeholder
+            await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
+            // const mockSummary: AudienceSummary = { example: `Mock summary for ${pageId}` };
+            // Temp fix for lint error until AudienceSummary is defined/used properly
+            const mockSummary: AudienceSummary = {} as AudienceSummary; 
+            setSummaryData(mockSummary);
+        } catch (err) {
+            console.error("Failed to fetch summary:", err);
+            setErrorSummary(err instanceof Error ? err.message : 'Failed to load summary');
+        } finally {
+            setIsLoadingSummary(false);
+        }
+    };
+
+    // Handle keyboard navigation
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            onClose();
+        } else if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+            // Next page (within active pages)
+            setCurrentPageIndex(prev => Math.min(prev + 1, activePages.length - 1));
+        } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+            // Previous page (within active pages)
+            setCurrentPageIndex(prev => Math.max(prev - 1, 0));
+        }
+    }, [onClose, activePages.length]);
+    
+    const goToNextPage = useCallback(() => {
+        if (currentPageIndex < activePages.length - 1) {
+            setCurrentPageIndex(currentPageIndex + 1);
+        }
+    }, [currentPageIndex, activePages.length]);
+    
+    const goToPrevPage = useCallback(() => {
+        if (currentPageIndex > 0) {
+            setCurrentPageIndex(currentPageIndex - 1);
+        }
+    }, [currentPageIndex]);
+    
+    if (!currentPage) {
+        // This case should ideally not happen if the Present button checks for active pages
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black text-white">
+                <p>No active pages to present.</p>
+                <button 
+                    onClick={onClose}
+                    className="absolute top-4 right-4 text-white hover:text-gray-300"
+                >
+                    <X size={24} />
+                </button>
+            </div>
+        );
+    }
+    
+    // Render the current page
+    return (
+        <div 
+            ref={containerRef}
+            className={`fixed inset-0 z-50 flex flex-col items-center p-8 ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}
+            tabIndex={0}
+            onKeyDown={handleKeyDown}
+        >
+             {/* Top Bar: Close button and Page indicator */}
+            <div className="w-full flex justify-between items-center mb-4">
+                <div className="absolute left-1/2 transform -translate-x-1/2 bg-gray-200 dark:bg-gray-700 rounded-full px-3 py-1 text-sm text-gray-900 dark:text-white">
+                     {currentPageIndex + 1} / {activePages.length} (Active Pages)
+                </div>
+                 <button 
+                    onClick={onClose}
+                    className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100 p-2 rounded-full bg-white/30 dark:bg-black/30 backdrop-blur-sm"
+                    aria-label="Close fullscreen"
+                >
+                    <X size={20} />
+                </button>
+            </div>
+            
+            {/* Main Content Area: Page View + Summary */}
+            <div className="w-full flex-grow flex flex-col md:flex-row items-stretch justify-center gap-8 overflow-hidden">
+                {/* Page Content */}
+                <div className="w-full md:w-2/3 flex flex-col justify-center items-center bg-gray-50 dark:bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-y-auto">
+                    <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center">{currentPage.page_title || `Page ${currentPage.page_order + 1}`}</h2>
+                    
+                    {currentPage.page_type === 'multi-choice' && (
+                        <div className="w-full max-w-lg space-y-4">
+                            <h3 className="text-xl font-semibold text-center">{currentPage.page_config && 'question' in currentPage.page_config ? currentPage.page_config.question : ''}</h3>
+                            <div className="space-y-3">
+                                {currentPage.page_config && 'options' in currentPage.page_config && 
+                                 Array.isArray(currentPage.page_config.options) && 
+                                 currentPage.page_config.options.map((option: string, idx: number) => (
+                                    <div key={idx} className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg text-lg bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white">
+                                        {option}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {currentPage.page_type === 'open-ended' && currentPage.page_config && 'question' in currentPage.page_config && (
+                        <div className="w-full max-w-lg space-y-4 text-center">
+                            <h3 className="text-xl font-semibold">{currentPage.page_config.question || 'Open-Ended Question'}</h3>
+                            <p className="text-gray-500 dark:text-gray-400">Audience can submit text responses.</p>
+                            {/* Summary will show responses/count */}
+                        </div>
+                    )}
+                    
+                    {currentPage.page_type === 'scales' && currentPage.page_config && 'question' in currentPage.page_config && 'scale_min' in currentPage.page_config && 'scale_max' in currentPage.page_config && (
+                        <div className="w-full max-w-lg space-y-4 text-center">
+                             <h3 className="text-xl font-semibold">{currentPage.page_config.question || 'Scale Rating'}</h3>
+                             <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mt-2">
+                                 <span>{currentPage.page_config.label_min || currentPage.page_config.scale_min}</span>
+                                 <span>{currentPage.page_config.label_max || currentPage.page_config.scale_max}</span>
+                             </div>
+                             {/* Summary will show distribution/average */}
+                        </div>
+                    )}
+                    
+                    {currentPage.page_type === 'ranking' && currentPage.page_config && 'question' in currentPage.page_config && 'items' in currentPage.page_config && Array.isArray(currentPage.page_config.items) && (
+                        <div className="w-full max-w-lg space-y-4">
+                            <h3 className="text-xl font-semibold text-center">{currentPage.page_config.question || 'Ranking Task'}</h3>
+                            <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-3">Audience needs to rank the following:</p>
+                             <div className="space-y-2">
+                                {currentPage.page_config.items.map((item: string, idx: number) => (
+                                    <div key={idx} className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg text-md bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white">
+                                        {idx + 1}. {item}
+                                    </div>
+                                ))}
+                            </div>
+                             {/* Summary will show average ranks */}
+                        </div>
+                    )}
+                    
+                    {currentPage.page_type === 'word-cloud' && currentPage.page_config && 'question' in currentPage.page_config && (
+                        <div className="w-full max-w-lg space-y-4 text-center">
+                            <h3 className="text-xl font-semibold">{currentPage.page_config.question || 'Word Cloud Prompt'}</h3>
+                            <p className="text-gray-500 dark:text-gray-400">Audience submits words to build the cloud.</p>
+                            {/* Summary will display the word cloud itself */}
+                        </div>
+                    )}
+
+                    {currentPage.page_type === 'poll' && currentPage.page_config && 'question' in currentPage.page_config && 'options' in currentPage.page_config && Array.isArray(currentPage.page_config.options) && (
+                         <div className="w-full max-w-lg space-y-4">
+                            <h3 className="text-xl font-semibold text-center">{currentPage.page_config.question || 'Poll Question'}</h3>
+                            <div className="space-y-3">
+                                {currentPage.page_config.options.map((option: string, idx: number) => (
+                                    <div key={idx} className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg text-lg bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white">
+                                        {option}
+                                    </div>
+                                ))}
+                            </div>
+                            {/* Summary will show poll results */}
+                        </div>
+                    )}
+                    
+                     {currentPage.page_type === 'q&a' && (
+                        <div className="w-full max-w-lg space-y-4 text-center">
+                            <h3 className="text-xl font-semibold">Q&A Session</h3>
+                            <p className="text-gray-500 dark:text-gray-400">Audience can submit questions.</p>
+                            {/* Summary will show submitted questions */}
+                        </div>
+                    )}
+                    
+                    {/* Fallback for any unexpected or unimplemented types */}
+                    {![ 'multi-choice', 'open-ended', 'scales', 'ranking', 'word-cloud', 'poll', 'q&a'].includes(currentPage.page_type) && (
+                        <div className="p-6 text-center">
+                            <h3 className="text-xl font-semibold">
+                                {currentPage.page_type.replace('-', ' ').replace(/\\b\\w/g, l => l.toUpperCase())} Page
+                            </h3>
+                            <p className="mt-4 text-gray-500 dark:text-gray-400">Presenter view for this page type not fully implemented.</p>
+                            <FormattedPageConfig config={currentPage.page_config} type={currentPage.page_type} />
+                        </div>
+                    )}
+                </div>
+                
+                {/* Audience Summary */}
+                <div className="w-full md:w-1/3 flex flex-col bg-gray-50 dark:bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-y-auto">
+                    <h3 className="text-xl font-semibold mb-4 text-center">Audience Summary</h3>
+                    {isLoadingSummary && <p className="text-center text-gray-500 dark:text-gray-400">Loading summary...</p>}
+                    {errorSummary && <p className="text-center text-red-500">Error: {errorSummary}</p>}
+                    {summaryData && !isLoadingSummary && !errorSummary && (
+                        <div className="text-sm">
+                            {/* TODO: Replace with actual summary display based on fetched data */}
+                            <pre className="whitespace-pre-wrap break-words bg-gray-100 dark:bg-gray-700 p-3 rounded">{JSON.stringify(summaryData, null, 2)}</pre>
+                        </div>
+                    )}
+                    {!summaryData && !isLoadingSummary && !errorSummary && (
+                        <p className="text-center text-gray-400 dark:text-gray-500">No summary data available.</p>
+                    )}
+                </div>
+            </div>
+            
+            {/* Bottom Bar: Navigation buttons and Help Text */}
+            <div className="w-full mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="w-full flex justify-between mb-2">
+                    <button
+                        onClick={goToPrevPage}
+                        className={`flex items-center px-4 py-2 rounded-lg text-sm ${
+                            currentPageIndex > 0 
+                                ? 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600' 
+                                : 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800'
+                        }`}
+                        disabled={currentPageIndex === 0}
+                    >
+                        <ArrowLeft className="mr-2" size={16} />
+                        Previous
+                    </button>
+                    
+                    <button
+                        onClick={goToNextPage}
+                        className={`flex items-center px-4 py-2 rounded-lg text-sm ${
+                            currentPageIndex < activePages.length - 1 
+                                ? 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600' 
+                                : 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800'
+                        }`}
+                        disabled={currentPageIndex === activePages.length - 1}
+                    >
+                        Next
+                        <ArrowRight className="ml-2" size={16} />
+                    </button>
+                </div>
+                <div className="text-center text-xs text-gray-500 dark:text-gray-400">
+                    Use arrow keys to navigate • Press ESC to exit fullscreen
+                </div>
+            </div>
+        </div>
     );
 };
 
@@ -99,67 +843,123 @@ interface EditPageModalProps {
 }
 
 const EditPageModal: React.FC<EditPageModalProps> = ({ isOpen, onClose, page, onSubmit, isLoading }) => {
+    const { isDarkMode } = useTheme(); // Get theme state
     const [title, setTitle] = useState('');
-    const [config, setConfig] = useState<any>(null);
+    const [pageConfig, setPageConfig] = useState<any>(null); // Holds config from PageConfigForm
+    const [formType, setFormType] = useState<PageType | ''>('');
+    
+    // State for form submission from PageConfigForm
+    const configFormRef = useRef<{ submit: () => void }>(null); // To trigger submit externally if needed
 
+    // Effect to update modal state when page prop changes
     useEffect(() => {
         if (page) {
             setTitle(page.page_title || '');
-            setConfig(page.page_config);
+            setPageConfig(page.page_config); // Set initial config for the form
+            setFormType(page.page_type);
         } else {
+            // Reset when modal closes or no page
             setTitle('');
-            setConfig(null);
+            setPageConfig(null);
+            setFormType('');
         }
-    }, [page, isOpen]);
+    }, [page]);
 
-    const handleConfigSubmit = useCallback((submittedConfig: any) => {
+    // Effect for Escape key listener
+    useEffect(() => {
+        const handleEsc = (event: KeyboardEvent) => {
+           if (event.key === 'Escape') {
+              onClose();
+           }
+        };
+        window.addEventListener('keydown', handleEsc);
+        
+        // Cleanup listener on component unmount or when modal closes
+        return () => {
+           window.removeEventListener('keydown', handleEsc);
+        };
+    }, [onClose]); // Re-attach if onClose changes
+
+    const handleInternalConfigSubmit = (config: any) => {
+        console.log("EditPageModal: Received config from form:", config);
+        setPageConfig(config); // Update state with the submitted config
+        // Now, call the main onSubmit passed from the parent
         if (page) {
-            const dataToSend = { page_title: title.trim(), page_config: submittedConfig };
-            onSubmit(page.page_id, dataToSend);
+            onSubmit(page.page_id, { page_title: title, page_config: config });
         }
-    }, [page, title, onSubmit]);
+    };
+    
+    // This is the function called when the modal's "Save Changes" button is clicked
+    const handleSaveChanges = () => {
+        console.log("EditPageModal: Save Changes button clicked. Current config state:", pageConfig);
+         if (page) {
+            // We directly use the latest state which should have been updated
+            // by handleInternalConfigSubmit IF the form was used and submitted.
+            // If the form wasn't submitted (e.g., only title changed), pageConfig retains its value.
+            onSubmit(page.page_id, { page_title: title, page_config: pageConfig });
+        }
+    };
 
     if (!isOpen || !page) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg">
-                <h2 className="text-xl font-bold mb-4">Edit Page (Order: {page.page_order + 1})</h2>
-                <div className="space-y-4">
-                    {/* Page Title Input */}
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-black bg-opacity-50 flex items-center justify-center p-4">
+            <div className={`bg-white ${isDarkMode ? 'dark:bg-gray-800' : ''} rounded-lg shadow-xl w-full max-w-lg`}>
+                <div className={`flex justify-between items-center p-4 border-b ${isDarkMode ? 'dark:border-gray-700' : 'border-gray-200'}`}>
+                    <h2 className={`text-lg font-semibold ${isDarkMode ? 'dark:text-white' : 'text-gray-900'}`}>Edit Page: {page.page_title || `Page ${page.page_order + 1}`}</h2>
+                    <button onClick={onClose} className={`text-gray-400 hover:text-gray-600 ${isDarkMode ? 'dark:hover:text-gray-200' : ''}`}>
+                        <X size={20} />
+                    </button>
+                </div>
+                <div className="p-6 space-y-4">
                     <div>
-                        <label className="block text-sm font-medium text-gray-700">Page Title (Optional):</label>
-                        <input 
-                            type="text" 
+                        <label htmlFor="pageTitle" className={`block text-sm font-medium ${isDarkMode ? 'dark:text-gray-300' : 'text-gray-700'}`}>Page Title:</label>
+                        <input
+                            type="text"
+                            id="pageTitle"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" 
-                            placeholder="e.g., Icebreaker Question"
+                            className={`mt-1 block w-full border rounded-md shadow-sm p-2 ${
+                                isDarkMode 
+                                ? 'dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-indigo-500 dark:focus:border-indigo-500' 
+                                : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
+                            }`}
+                            placeholder="Enter page title"
                         />
                     </div>
-
-                    {/* Page Config Form */}
-                    <div>
-                         <label className="block text-sm font-medium text-gray-700">Page Configuration ({page.page_type}):</label>
-                         <PageConfigForm 
-                             type={page.page_type} 
-                             onSubmit={handleConfigSubmit} 
-                             initialConfig={config}
-                         />
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex justify-end space-x-3 mt-6">
-                        <button 
-                            type="button"
-                            onClick={onClose}
-                            disabled={isLoading}
-                            className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 disabled:opacity-50"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                 </div>
+                    
+                    {/* Conditionally render PageConfigForm */}
+                    {formType && (
+                        <PageConfigForm 
+                            type={formType} 
+                            onSubmit={handleInternalConfigSubmit} 
+                            initialConfig={pageConfig} // Pass current config as initial
+                        />
+                    )}
+                    
+                </div>
+                <div className={`flex justify-end items-center p-4 border-t ${isDarkMode ? 'dark:border-gray-700' : 'border-gray-200'} space-x-2`}>
+                    <button 
+                        onClick={onClose}
+                        disabled={isLoading}
+                        className={`px-4 py-2 rounded ${
+                            isDarkMode 
+                            ? 'bg-gray-600 hover:bg-gray-500 text-white' 
+                            : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
+                        } disabled:opacity-50`}
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={handleSaveChanges} // Use the correct handler
+                        disabled={isLoading}
+                        className={`px-4 py-2 rounded text-white ${
+                            isLoading ? 'bg-blue-300 dark:bg-blue-800' : 'bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700'
+                        } disabled:opacity-50`}
+                    >
+                        {isLoading ? 'Saving...' : 'Save Changes'}
+                    </button>
+                </div>
             </div>
         </div>
     );
@@ -168,611 +968,812 @@ const EditPageModal: React.FC<EditPageModalProps> = ({ isOpen, onClose, page, on
 // --- Main Component ---
 
 const PresentationManagePage: React.FC = () => {
-  const { id: presentationId } = useParams<{ id: string }>();
-  const navigate = useNavigate();
-  const { isDarkMode } = useTheme();
-  const [presentation, setPresentation] = useState<Presentation | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isAddingPage, setIsAddingPage] = useState(false); // State to show/hide add page form
-  const [newPageType, setNewPageType] = useState<string>('multi-choice'); // Default new page type
-  const [newPageTitle, setNewPageTitle] = useState('');
-  const [isUpdatingState, setIsUpdatingState] = useState(false); // Add state for loading indicator
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingPage, setEditingPage] = useState<Page | null>(null);
+    const { id: presentationId } = useParams<{ id: string }>();
+    const navigate = useNavigate();
+    const { isDarkMode } = useTheme();
+    const [presentation, setPresentation] = useState<Presentation | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isAddingPage, setIsAddingPage] = useState(false); // State to show/hide add page form
+    const [newPageType, setNewPageType] = useState<PageType | ''>( 'multi-choice'); // <-- Fix: Use PageType union, initialize correctly
+    const [newPageTitle, setNewPageTitle] = useState('');
+    const [isUpdatingState, setIsUpdatingState] = useState(false); // Add state for loading indicator
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingPage, setEditingPage] = useState<Page | null>(null);
+    const [isFullscreenMode, setIsFullscreenMode] = useState(false);
+    const [fullscreenPageIndex, setFullscreenPageIndex] = useState(0);
+    const [activatingPageId, setActivatingPageId] = useState<string | null>(null); // Track which page is being activated
 
-  useEffect(() => {
-    document.body.className = isDarkMode ? 'dark bg-gray-900' : 'bg-gray-50';
-  }, [isDarkMode]);
+    useEffect(() => {
+        document.body.className = isDarkMode ? 'dark bg-gray-900' : 'bg-gray-50';
+    }, [isDarkMode]);
 
-  useEffect(() => {
-    if (presentationId) {
-        fetchPresentation();
-    } else {
-        setError('No Presentation ID provided.');
-        setIsLoading(false);
-    }
-  }, [presentationId]);
-
-  const fetchPresentation = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            navigate('/login');
-            return;
+    useEffect(() => {
+        if (presentationId) {
+            fetchPresentation();
+        } else {
+            setError('No Presentation ID provided.');
+            setIsLoading(false);
         }
+    }, [presentationId]);
 
-      const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
-            navigate('/login'); // Redirect if unauthorized
-            return;
-        } else if (response.status === 404) {
-            throw new Error('Presentation not found.');
-        }
-        throw new Error('Failed to fetch presentation details');
-      }
-
-      const data: Presentation = await response.json();
-      // Ensure pages are sorted on fetch
-      if (data.pages) {
-          data.pages.sort((a, b) => a.page_order - b.page_order);
-      }
-      setPresentation(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch presentation');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleAddPage = async (pageConfig: any) => {
-      if (!presentationId || !presentation) return;
-
-      setError(null);
-      // Basic validation
-      if (!newPageType) {
-          setError('Please select a page type.');
-          return;
-      }
-
-      const newPageData: Omit<Page, 'page_id' | 'audience_response_count' | 'audience_summary'> = {
-          page_order: presentation.pages.length, // Add to the end
-          page_type: newPageType as any, // Cast needed if PageType enum isn't used directly
-          page_title: newPageTitle || '',
-          page_config: pageConfig,
-      };
-
-      try {
-          const token = localStorage.getItem('token');
-          const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/pages`, {
-              method: 'POST',
-              headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`,
-              },
-              body: JSON.stringify(newPageData),
-          });
-
-          if (!response.ok) {
-              const errorData = await response.json().catch(() => ({ message: 'Failed to add page' }));
-              throw new Error(errorData.message || 'Failed to add page');
-          }
-
-          const updatedPresentation: Presentation = await response.json();
-           // Ensure pages are sorted after update
-          if (updatedPresentation.pages) {
-              updatedPresentation.pages.sort((a, b) => a.page_order - b.page_order);
-          }
-          setPresentation(updatedPresentation);
-          // Reset form
-          setIsAddingPage(false);
-          setNewPageTitle('');
-          setNewPageType('multi-choice');
-
-      } catch (err) {
-          setError(err instanceof Error ? err.message : 'Failed to add page');
-      }
-  };
-
-  const handleStartPresentation = async () => {
-    if (!presentation || isUpdatingState) return; // Prevent double clicks
-    
-    setError(null);
-    setIsUpdatingState(true); // Set loading state
-    try {
-      // Start the presentation session
-      const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/start`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-
-      if (!response.ok) {
-        let errorMessage = 'Failed to start presentation'; // Default
+    const fetchPresentation = async () => {
+        setIsLoading(true);
+        setError(null);
         try {
-          const errorData = await response.json();
-          if (errorData && (errorData.message || errorData.error)) {
-            errorMessage = errorData.message || errorData.error;
-          }
-        } catch (jsonError) {
-          console.error('Failed to parse error response JSON:', jsonError);
-        }
-        throw new Error(errorMessage); // Throw with specific or default message
-      }
-
-      const { sessionId } = await response.json();
-      // Update local state optimistically *before* navigating
-      // The start endpoint doesn't return the full presentation, so we patch it
-      setPresentation(prev => prev ? { ...prev, state: 'active' } : null);
-      navigate(`/presenter/${presentationId}/live/${sessionId}`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start presentation');
-    } finally {
-      setIsUpdatingState(false); // Clear loading state
-    }
-  };
-
-  // --- New Handler for Ending Presentation ---
-  const handleEndPresentation = async () => {
-    if (!presentation || isUpdatingState) return; // Prevent double clicks
-
-    setError(null);
-    setIsUpdatingState(true);
-    try {
-        const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/state`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            },
-            body: JSON.stringify({ state: 'completed' }),
-        });
-
-        if (!response.ok) {
-            let errorMessage = 'Failed to end presentation';
-            try {
-                const errorData = await response.json();
-                if (errorData && (errorData.message || errorData.error)) {
-                    errorMessage = errorData.message || errorData.error;
-                }
-            } catch (jsonError) {
-                console.error('Failed to parse error response JSON:', jsonError);
+            const token = localStorage.getItem('token');
+            if (!token) {
+                navigate('/login');
+                return;
             }
-            throw new Error(errorMessage);
+
+            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                },
+            });
+
+            if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                    navigate('/login'); // Redirect if unauthorized
+                    return;
+                } else if (response.status === 404) {
+                    throw new Error('Presentation not found.');
+                }
+                throw new Error('Failed to fetch presentation details');
+            }
+
+            const data: Presentation = await response.json();
+            // Ensure pages are sorted on fetch
+            if (data.pages) {
+                data.pages.sort((a, b) => a.page_order - b.page_order);
+            }
+            setPresentation(data);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to fetch presentation');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleAddPage = async (pageConfig: any) => {
+        if (!presentationId || !presentation) return;
+
+        setError(null);
+        // Basic validation
+        if (!newPageType) {
+            setError('Please select a page type.');
+            return;
         }
 
-        const updatedPresentation: Presentation = await response.json();
-        setPresentation(updatedPresentation); // Update state with response from backend
+        const newPageData: Omit<Page, 'page_id' | 'audience_response_count' | 'audience_summary'> = {
+            page_order: presentation.pages.length, // Add to the end
+            page_type: newPageType as any, // Cast needed if PageType enum isn't used directly
+            status: 'active', // Explicitly set default status
+            page_title: newPageTitle || '',
+            page_config: pageConfig,
+        };
 
-    } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to end presentation');
-    } finally {
-        setIsUpdatingState(false);
-    }
-  };
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/pages`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify(newPageData),
+            });
 
-  const handlePageChange = async (newIndex: number) => {
-    // TODO: Implement handlePageChange logic properly
-    // This function is currently not used, but the previous attempt had type errors
-    // It likely needs to call the backend API PUT /api/presentations/:id/current-page
-    // and then update the local presentation state upon success.
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({ message: 'Failed to add page' }));
+                throw new Error(errorData.message || 'Failed to add page');
+            }
 
-    /* PREVIOUS BROKEN CODE:
-    if (!presentation || newIndex < 0 || newIndex >= presentation.pages.length) return;
+            const updatedPresentation: Presentation = await response.json();
+             // Ensure pages are sorted after update
+            if (updatedPresentation.pages) {
+                updatedPresentation.pages.sort((a, b) => a.page_order - b.page_order);
+            }
+            setPresentation(updatedPresentation);
+            // Reset form
+            setIsAddingPage(false);
+            setNewPageTitle('');
+            setNewPageType('multi-choice');
 
-    try {
-      await fetch(`http://localhost:8080/api/presentations/${presentationId}/page`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ pageIndex: newIndex }),
-      });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to add page');
+        }
+    };
 
-      setPresentation(prevPresentation => ({
-        ...prevPresentation,
-        current_page_id: presentation.pages[newIndex].page_id,
-      }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to change page');
-    }
-    */
-  };
+    const handleStartPresentation = async () => {
+        if (!presentation || isUpdatingState) return; // Prevent double clicks
+        
+        setError(null);
+        setIsUpdatingState(true); // Set loading state
+        try {
+            // Start the presentation session
+            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/start`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                },
+            });
 
-  // Placeholder handlers for page actions - to be implemented later
-  const handleEditPage = (pageId: string) => {
-      if (presentation && presentation.state === 'draft') {
-          const pageToEdit = presentation.pages.find(p => p.page_id === pageId);
-          if (pageToEdit) {
-              setEditingPage(pageToEdit);
-              setIsEditModalOpen(true);
-              setError(null); // Clear previous errors
-          } else {
-              setError('Could not find page to edit.');
-          }
-      } else {
-          setError('Cannot edit page: Presentation is not in draft state.')
-      }
-  };
+            if (!response.ok) {
+                let errorMessage = 'Failed to start presentation'; // Default
+                try {
+                    const errorData = await response.json();
+                    if (errorData && (errorData.message || errorData.error)) {
+                        errorMessage = errorData.message || errorData.error;
+                    }
+                } catch (jsonError) {
+                    console.error('Failed to parse error response JSON:', jsonError);
+                }
+                throw new Error(errorMessage); // Throw with specific or default message
+            }
 
-  const handleDeletePage = async (pageId: string) => {
-      if (!presentation || presentation.state !== 'draft') {
-          setError('Cannot delete pages unless presentation is in draft state.');
-          return;
-      }
-      
-      // Confirmation dialog
-      if (!window.confirm(`Are you sure you want to delete this page? (ID: ${pageId.substring(0,6)}...)`)) {
-          return;
-      }
+            const { sessionId } = await response.json();
+            // Update local state optimistically *before* navigating
+            // The start endpoint doesn't return the full presentation, so we patch it
+            setPresentation(prev => prev ? { ...prev, state: 'active' } : null);
+            navigate(`/presenter/${presentationId}/live/${sessionId}`);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to start presentation');
+        } finally {
+            setIsUpdatingState(false); // Clear loading state
+        }
+    };
 
-      setIsUpdatingState(true); // Use existing state for loading indicator
-      setError(null);
-      try {
-          const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/pages/${pageId}`, {
-              method: 'DELETE',
-              headers: {
-                  'Authorization': `Bearer ${localStorage.getItem('token')}`,
-              },
-          });
+    // --- New Handler for Ending Presentation ---
+    const handleEndPresentation = async () => {
+        if (!presentation || isUpdatingState) return; // Prevent double clicks
 
-          if (!response.ok) {
-              let errorMessage = 'Failed to delete page';
-              try {
-                  const errorData = await response.json();
-                  if (errorData && (errorData.message || errorData.error)) {
-                      errorMessage = errorData.message || errorData.error;
-                  }
-              } catch (jsonError) {
-                  console.error('Failed to parse error response JSON:', jsonError);
-              }
-              throw new Error(errorMessage);
-          }
+        setError(null);
+        setIsUpdatingState(true);
+        try {
+            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/state`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                },
+                body: JSON.stringify({ state: 'completed' }),
+            });
 
-          // On success, update local state
-          const updatedPresentation: Presentation = await response.json();
-          // Ensure pages are sorted after update from backend
-          if (updatedPresentation.pages) {
-              updatedPresentation.pages.sort((a, b) => a.page_order - b.page_order);
-          }
-          setPresentation(updatedPresentation);
+            if (!response.ok) {
+                let errorMessage = 'Failed to end presentation';
+                try {
+                    const errorData = await response.json();
+                    if (errorData && (errorData.message || errorData.error)) {
+                        errorMessage = errorData.message || errorData.error;
+                    }
+                } catch (jsonError) {
+                    console.error('Failed to parse error response JSON:', jsonError);
+                }
+                throw new Error(errorMessage);
+            }
 
-      } catch (err) {
-          setError(err instanceof Error ? err.message : 'Failed to delete page');
-      } finally {
-          setIsUpdatingState(false);
-      }
-  };
+            const updatedPresentation: Presentation = await response.json();
+            setPresentation(updatedPresentation); // Update state with response from backend
 
-  const handleActivatePage = async (pageId: string | null) => {
-      console.log('Activate page:', pageId);
-      if (!presentationId) return;
-      // TODO: Implement PUT /current-page API call and update state
-      setError('Activate functionality not yet implemented.');
-      
-      /* Implementation draft:
-      setIsUpdatingState(true); 
-      setError(null);
-      try {
-          const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/current-page`, {
-              method: 'PUT',
-              headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${localStorage.getItem('token')}`,
-              },
-              body: JSON.stringify({ pageId }), // Send null to deactivate all?
-          });
-           if (!response.ok) { throw new Error('Failed to set active page'); }
-          const updatedPresentation: Presentation = await response.json();
-          setPresentation(updatedPresentation);
-      } catch (err) {
-          setError(err instanceof Error ? err.message : 'Failed to set active page');
-      } finally {
-          setIsUpdatingState(false);
-      }
-      */
-  };
-
-  // --- New Handler for Submitting Page Updates from Modal ---
-  const handleUpdatePage = async (pageId: string, data: { page_title?: string; page_config?: any }) => {
-    if (!presentationId || !presentation) return;
-
-    setIsUpdatingState(true);
-    setError(null);
-    try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-            setError('Authentication token not found. Please log in again.');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to end presentation');
+        } finally {
             setIsUpdatingState(false);
-            navigate('/login');
+        }
+    };
+
+    const handlePageChange = async (newIndex: number) => {
+        // TODO: Implement handlePageChange logic properly
+        // This function is currently not used, but the previous attempt had type errors
+        // It likely needs to call the backend API PUT /api/presentations/:id/current-page
+        // and then update the local presentation state upon success.
+
+        /* PREVIOUS BROKEN CODE:
+        if (!presentation || newIndex < 0 || newIndex >= presentation.pages.length) return;
+
+        try {
+            await fetch(`http://localhost:8080/api/presentations/${presentationId}/page`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ pageIndex: newIndex }),
+            });
+
+            setPresentation(prevPresentation => ({
+                ...prevPresentation,
+                current_page_id: presentation.pages[newIndex].page_id,
+            }));
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to change page');
+        }
+        */
+    };
+
+    // Placeholder handlers for page actions
+    const handleEditPage = (pageId: string) => {
+        if (presentation) { // Only proceed if presentation data exists
+            const pageToEdit = presentation.pages.find(p => p.page_id === pageId);
+            if (pageToEdit) {
+                setEditingPage(pageToEdit);
+                setIsEditModalOpen(true);
+                setError(null); // Clear previous errors
+            } else {
+                setError('Could not find page to edit.');
+            }
+        } else {
+            setError('Presentation data not loaded.'); // Should not happen often
+        }
+    };
+
+    const handleDeletePage = async (pageId: string) => {
+        if (!presentation) {
+            setError('Cannot delete page: Presentation data not loaded.');
             return;
         }
         
-        const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/pages/${pageId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify(data),
+        // Confirmation dialog
+        if (!window.confirm(`Are you sure you want to delete this page? (ID: ${pageId.substring(0,6)}...)`)) {
+            return;
+        }
+
+        setIsUpdatingState(true); // Use existing state for loading indicator
+        setError(null);
+        try {
+            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/pages/${pageId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                },
+            });
+
+            if (!response.ok) {
+                let errorMessage = 'Failed to delete page';
+                try {
+                    const errorData = await response.json();
+                    if (errorData && (errorData.message || errorData.error)) {
+                        errorMessage = errorData.message || errorData.error;
+                    }
+                } catch (jsonError) {
+                    console.error('Failed to parse error response JSON:', jsonError);
+                }
+                throw new Error(errorMessage);
+            }
+
+            // On success, update local state
+            const updatedPresentation: Presentation = await response.json();
+            // Ensure pages are sorted after update from backend
+            if (updatedPresentation.pages) {
+                updatedPresentation.pages.sort((a, b) => a.page_order - b.page_order);
+            }
+            setPresentation(updatedPresentation);
+
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to delete page');
+        } finally {
+            setIsUpdatingState(false);
+        }
+    };
+
+    const handleActivatePage = useCallback(async (pageId: string | null) => {
+        if (!presentationId) return;
+        
+        // Avoid unnecessary updates if the page is already the target
+        if (presentation?.current_page_id === pageId) {
+            console.log("Audience view already set to page:", pageId);
+            return;
+        }
+
+        setIsUpdatingState(true);
+        setActivatingPageId(pageId); // Set which page is being activated
+        setError(null);
+        
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Authentication token not found. Please log in again.');
+                navigate('/login');
+                return;
+            }
+            
+            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/current-page`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ pageId: pageId }), // Use pageId to match the server schema
+            });
+            
+            if (!response.ok) {
+                let errorMessage = 'Failed to update active page';
+                
+                if (response.status === 401 || response.status === 403) {
+                    errorMessage = 'Authentication failed. Please log in again.';
+                    navigate('/login');
+                } else if (response.status === 400) {
+                    const errorData = await response.json().catch(() => ({}));
+                    errorMessage = errorData.message || 'Invalid page ID or presentation state';
+                } else if (response.status === 404) {
+                    errorMessage = 'Presentation or page not found';
+                }
+                
+                // Attempt to parse error body for more specific message
+                if (errorMessage === 'Failed to update active page') { // Avoid overwriting specific messages
+                    try {
+                        const errorData = await response.json();
+                        if (errorData && (errorData.message || errorData.error)) {
+                            errorMessage = errorData.message || errorData.error;
+                        }
+                    } catch (jsonError) {
+                        console.error('Failed to parse error response JSON:', jsonError);
+                    }
+                }
+                
+                throw new Error(errorMessage);
+            }
+            
+            const updatedPresentation: Presentation = await response.json();
+            setPresentation(updatedPresentation);
+            
+            // Show feedback message (optional)
+            const message = pageId ? 'Audience view set successfully' : 'Audience view cleared';
+            console.log(message);
+            
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to update active page');
+        } finally {
+            setIsUpdatingState(false);
+            setActivatingPageId(null); // Reset the activating page ID
+        }
+    // Add dependencies for useCallback
+    }, [presentationId, navigate, presentation?.current_page_id]);
+
+    // --- New Handler for Submitting Page Updates from Modal ---
+    const handleUpdatePage = async (pageId: string, data: { page_title?: string; page_config?: any }) => {
+        if (!presentationId || !presentation) return;
+
+        setIsUpdatingState(true);
+        setError(null);
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                setError('Authentication token not found. Please log in again.');
+                setIsUpdatingState(false);
+                navigate('/login');
+                return;
+            }
+            
+            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/pages/${pageId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (!response.ok) {
+                let errorMessage = 'Failed to update page';
+                if (response.status === 401 || response.status === 403) {
+                    errorMessage = 'Authentication failed. Please log in again.';
+                    navigate('/login');
+                }
+                try {
+                    const errorData = await response.json();
+                    if (errorMessage === 'Failed to update page' && errorData && (errorData.message || errorData.error)) {
+                        errorMessage = errorData.message || errorData.error;
+                    }
+                } catch (jsonError) {
+                    console.error('Failed to parse error response JSON:', jsonError);
+                }
+                throw new Error(errorMessage);
+            }
+
+            const updatedPresentationDataFromApi: Presentation = await response.json();
+
+            if (updatedPresentationDataFromApi.pages) {
+                updatedPresentationDataFromApi.pages.sort((a, b) => a.page_order - b.page_order);
+            }
+            
+            setPresentation(updatedPresentationDataFromApi);
+
+            setIsEditModalOpen(false);
+            setEditingPage(null);
+
+        } catch (error: any) {
+            console.error('Failed to update page:', error);
+            setError(error.message || 'An unexpected error occurred while updating the page.');
+        } finally {
+            setIsUpdatingState(false);
+        }
+    };
+
+    // --- New Handler for Updating Page Status ---
+    const handleUpdatePageStatus = async (pageId: string, newStatus: 'active' | 'skipped') => {
+        if (!presentationId) return;
+        
+        // Optimistic update (optional but improves perceived performance)
+        const originalPages = presentation?.pages;
+        setPresentation(prev => {
+            if (!prev) return null;
+            return {
+                ...prev,
+                pages: prev.pages.map(p => p.page_id === pageId ? { ...p, status: newStatus } : p)
+            };
         });
 
-        if (!response.ok) {
-            let errorMessage = 'Failed to update page';
-            if (response.status === 401 || response.status === 403) {
-                errorMessage = 'Authentication failed. Please log in again.';
-                navigate('/login');
-            }
-            try {
-                const errorData = await response.json();
-                if (errorMessage === 'Failed to update page' && errorData && (errorData.message || errorData.error)) {
-                    errorMessage = errorData.message || errorData.error;
-                }
-            } catch (jsonError) {
-                console.error('Failed to parse error response JSON:', jsonError);
-            }
-            throw new Error(errorMessage);
-        }
+        setIsUpdatingState(true); // Use general updating state
+        setError(null);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/pages/${pageId}/status`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ status: newStatus }),
+            });
 
-        const updatedPresentationDataFromApi: Presentation = await response.json();
+            if (!response.ok) {
+                // Revert optimistic update on failure
+                setPresentation(prev => prev ? { ...prev, pages: originalPages || [] } : null);
+                
+                let errorMessage = 'Failed to update page status';
+                try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.message || errorMessage;
+                } catch { /* Ignore parsing error */ }
+                throw new Error(errorMessage);
+            }
 
-        if (updatedPresentationDataFromApi.pages) {
-            updatedPresentationDataFromApi.pages.sort((a, b) => a.page_order - b.page_order);
+            // Update state with the confirmed data from the backend
+            const updatedPresentation: Presentation = await response.json();
+             if (updatedPresentation.pages) {
+                updatedPresentation.pages.sort((a, b) => a.page_order - b.page_order);
+            }
+            setPresentation(updatedPresentation);
+
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to update page status');
+            // Revert optimistic update on error
+            setPresentation(prev => prev ? { ...prev, pages: originalPages || [] } : null);
+        } finally {
+            setIsUpdatingState(false);
         }
+    };
+
+    // --- New Handler for Setting Status for All Pages ---
+    const handleSetAllPagesStatus = async (newStatus: 'active' | 'skipped') => {
+        if (!presentationId || !presentation?.pages || presentation.pages.length === 0) return;
+
+        const originalPages = presentation.pages;
+        // Optimistic update
+        setPresentation(prev => prev ? { ...prev, pages: prev.pages.map(p => ({ ...p, status: newStatus })) } : null);
         
-        setPresentation(updatedPresentationDataFromApi);
+        setIsUpdatingState(true);
+        setError(null);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/pages/status`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify({ status: newStatus }),
+            });
 
-        setIsEditModalOpen(false);
-        setEditingPage(null);
+            if (!response.ok) {
+                setPresentation(prev => prev ? { ...prev, pages: originalPages } : null); // Revert
+                let errorMessage = `Failed to set all pages to ${newStatus}`;
+                try { const errorData = await response.json(); errorMessage = errorData.message || errorMessage; } catch {} 
+                throw new Error(errorMessage);
+            }
 
-    } catch (error: any) {
-        console.error('Failed to update page:', error);
-        setError(error.message || 'An unexpected error occurred while updating the page.');
-    } finally {
-        setIsUpdatingState(false);
-    }
-};
+            const updatedPresentation: Presentation = await response.json();
+            if (updatedPresentation.pages) {
+                updatedPresentation.pages.sort((a, b) => a.page_order - b.page_order);
+            }
+            setPresentation(updatedPresentation);
 
-  // --- Render Functions ---
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to update all page statuses');
+            setPresentation(prev => prev ? { ...prev, pages: originalPages } : null); // Revert
+        } finally {
+            setIsUpdatingState(false);
+        }
+    };
 
-  const renderLoading = () => (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-      </div>
-  );
+    // --- Render Functions ---
 
-  const renderError = () => (
-      <div className="min-h-screen bg-gray-100 p-6">
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-          <p>{error}</p>
-          <button
-            onClick={() => navigate('/presenter')}
-            className="mt-2 text-sm underline"
-          >
-            Back to Presentations
-          </button>
+    const renderLoading = () => (
+        <div className="flex justify-center items-center h-64">
+            <p className={`text-gray-500 ${isDarkMode ? 'dark:text-gray-400' : ''}`}>Loading presentation details...</p>
         </div>
-      </div>
-  );
+    );
 
-  const renderNotFound = () => (
-       <div className="min-h-screen bg-gray-100 p-6">
-        <div className="text-center">
-          <p className="text-gray-600">Presentation not found</p>
-          <button
-            onClick={() => navigate('/presenter')}
-            className="mt-2 text-sm underline"
-          >
-            Back to Presentations
-          </button>
+    const renderError = () => (
+        <div className={`p-4 mb-4 text-sm rounded-lg ${isDarkMode ? 'bg-red-900 text-red-300' : 'bg-red-100 text-red-700'}`} role="alert">
+            <span className="font-medium">Error!</span> {error}
         </div>
-      </div>
-  );
+    );
 
-  if (isLoading) {
-    return renderLoading();
-  }
+    const renderNotFound = () => (
+        <div className={`p-4 mb-4 text-sm rounded-lg ${isDarkMode ? 'bg-yellow-900 text-yellow-300' : 'bg-yellow-100 text-yellow-700'}`} role="alert">
+            <span className="font-medium">Not Found!</span> No presentation found with this ID.
+            <button onClick={() => navigate('/')} className="ml-4 underline">Go Home</button>
+        </div>
+    );
 
-  if (error) {
-    return renderError();
-  }
+    if (isLoading) return <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}><Header /><div className="container mx-auto p-4">{renderLoading()}</div></div>;
+    if (error) return <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}><Header /><div className="container mx-auto p-4">{renderError()}</div></div>;
+    if (!presentation) return <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}><Header /><div className="container mx-auto p-4"><p>Something went wrong.</p></div></div>;
 
-  if (!presentation) {
-    return renderNotFound();
-  }
+    return (
+        <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
+            <Header />
+            
+            <div className="container mx-auto p-4">
+                {error && renderError()}
 
-  // --- Main Page Layout ---
-  return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-200">
-      <Header />
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-12">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Back Button */} 
-          <button onClick={() => navigate('/presenter')} className="mb-4 text-sm text-blue-600 hover:underline">
-            &larr; Back to Presentations
-          </button>
-
-          <div className="bg-white shadow-lg rounded-lg overflow-hidden mb-8">
-            {/* Header */}
-            <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-              <div className="flex justify-between items-center">
-                <div>
-                   <h1 className="text-2xl font-bold text-gray-900">{presentation.title}</h1>
-                   {presentation.description && (
-                     <p className="mt-1 text-sm text-gray-600">{presentation.description}</p>
-                   )}
+                {/* Presentation Details */}
+                <div className={`mb-6 p-6 rounded-lg shadow ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                    <div className="flex justify-between items-start mb-4">
+                        <div>
+                             <h1 className="text-2xl font-bold">{presentation.title}</h1>
+                             <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>State: <span className={`font-medium px-2 py-0.5 rounded-full text-xs ${presentation.state === 'active' ? (isDarkMode ? 'bg-green-800 text-green-200' : 'bg-green-100 text-green-800') : (isDarkMode ? 'bg-yellow-800 text-yellow-200' : 'bg-yellow-100 text-yellow-800')}`}>{presentation.state}</span></p>
+                        </div>
+                        <div className="flex space-x-2">
+                           {/* Conditionally render Start/End buttons based on state */}
+                           {presentation.state === 'draft' && (
+                                <button 
+                                    onClick={handleStartPresentation} 
+                                    disabled={isLoading}
+                                    className={`px-4 py-2 rounded text-white ${isDarkMode ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-green-600'} disabled:opacity-50`}
+                                >
+                                    Start Presentation
+                                </button>
+                            )}
+                            {presentation.state === 'active' && (
+                                <button 
+                                    onClick={handleEndPresentation} 
+                                    disabled={isLoading}
+                                    className={`px-4 py-2 rounded text-white ${isDarkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} disabled:opacity-50`}
+                                >
+                                    End Presentation
+                                </button>
+                            )}
+                            <button 
+                                onClick={() => navigate('/presenter')}
+                                className={`px-4 py-2 rounded ${isDarkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'}`}
+                            >
+                                Back to List
+                            </button>
+                        </div>
+                    </div>
+                     {/* Access Code - only show if active */}
+                    {presentation.state === 'active' && presentation.access_code && (
+                        <div className={`mt-4 p-3 rounded ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+                            <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>Audience Access Code: <strong className={`text-lg ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>{presentation.access_code}</strong></p>
+                        </div>
+                    )}
                 </div>
-                {/* Updated Button Logic */}
-                <button
-                   onClick={() => {
-                      if (presentation.state === 'draft') {
-                          handleStartPresentation();
-                      } else if (presentation.state === 'active') {
-                          handleEndPresentation(); 
-                      }
-                   }}
-                   className={`px-4 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 ${ 
-                      presentation.state === 'draft' ? 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500' : 
-                      presentation.state === 'active' ? 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500' : 
-                      'bg-gray-400 text-gray-800 cursor-not-allowed' // Completed state style
-                   }`}
-                   disabled={presentation.state === 'completed' || isUpdatingState} // Disable if completed or updating
-                >
-                  {isUpdatingState ? 'Updating...' : 
-                   presentation.state === 'draft' ? 'Start Presentation' : 
-                   presentation.state === 'active' ? 'End Presentation' : 
-                   'Presentation Completed'}
-                </button>
-              </div>
-               <p className="mt-2 text-xs text-gray-500">ID: {presentation.presentation_id || presentation._id} | Access Code: {presentation.access_code} | State: <span className="font-medium">{presentation.state}</span></p>
+
+                {/* Manage Pages Section */}
+                <div className={`p-6 rounded-lg shadow ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                     <div className="flex justify-between items-center mb-4">
+                        <h2 className={`text-xl font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Pages</h2>
+                         <div className="flex items-center space-x-2">
+                             {/* Bulk Status Update Buttons */}
+                              <button
+                                onClick={() => handleSetAllPagesStatus('active')}
+                                disabled={isUpdatingState || presentation.state !== 'active'} // Disable if not active
+                                className={`px-3 py-1 text-xs rounded ${isDarkMode ? 'bg-blue-700 hover:bg-blue-600' : 'bg-blue-100 hover:bg-blue-200'} ${isDarkMode ? 'text-blue-100' : 'text-blue-800'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                                title={presentation.state !== 'active' ? "Presentation must be active to set status" : ""}
+                            >
+                                Set All Active
+                            </button>
+                            <button
+                                onClick={() => handleSetAllPagesStatus('skipped')}
+                                disabled={isUpdatingState || presentation.state !== 'active'} // Disable if not active
+                                className={`px-3 py-1 text-xs rounded ${isDarkMode ? 'bg-yellow-700 hover:bg-yellow-600' : 'bg-yellow-100 hover:bg-yellow-200'} ${isDarkMode ? 'text-yellow-100' : 'text-yellow-800'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                                title={presentation.state !== 'active' ? "Presentation must be active to set status" : ""}
+                            >
+                                Set All Skipped
+                            </button>
+                             {/* Present Button */}
+                             <button
+                                onClick={() => {
+                                    const activePages = presentation.pages.filter(p => p.status === 'active');
+                                    if (activePages.length > 0) {
+                                         // Find the index of the current audience page among active pages
+                                        const currentActiveIndex = activePages.findIndex(p => p.page_id === presentation?.current_page_id);
+                                        setFullscreenPageIndex(Math.max(0, currentActiveIndex)); // Start at current page or first if none active
+                                        setIsFullscreenMode(true);
+                                    } else {
+                                        alert("No active pages to present."); // Or show a more user-friendly message
+                                    }
+                                }}
+                                disabled={presentation.pages.filter(p => p.status === 'active').length === 0 || presentation.state !== 'active'}
+                                className={`px-4 py-2 rounded text-white flex items-center space-x-1 ${isDarkMode ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-indigo-500 hover:bg-indigo-600'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                                title={presentation.state !== 'active' ? "Presentation must be active to present" : presentation.pages.filter(p => p.status === 'active').length === 0 ? "No active pages available" : "Present Active Pages"}
+                             >
+                                 <Maximize2 size={16} />
+                                <span>Present Active Pages</span>
+                             </button>
+                         </div>
+                     </div>
+
+                    {/* Add Page Form Toggle */}
+                    <div className="mb-4">
+                        <button 
+                            onClick={() => setIsAddingPage(!isAddingPage)}
+                            disabled={presentation.state !== 'draft'}
+                            className={`px-4 py-2 text-sm rounded ${
+                                isDarkMode 
+                                ? 'bg-green-700 hover:bg-green-600 text-white' 
+                                : 'bg-green-100 hover:bg-green-200 text-green-800'
+                            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                             title={presentation.state !== 'draft' ? "Cannot add pages unless presentation is in draft state" : "Add New Page"}
+                        >
+                            {isAddingPage ? 'Cancel Add Page' : '+ Add New Page'}
+                        </button>
+                    </div>
+
+                    {/* Add Page Form */}
+                    {isAddingPage && (
+                         <div className={`p-4 border rounded mb-4 ${isDarkMode ? 'border-gray-700 bg-gray-750' : 'border-gray-200 bg-gray-50'}`}>
+                            <h3 className="text-lg font-medium mb-2">Add New Page</h3>
+                            <div className="mb-3">
+                                <label className="block text-sm font-medium mb-1">Page Type:</label>
+                                <select 
+                                    value={newPageType} 
+                                    onChange={(e) => setNewPageType(e.target.value as PageType | '')}
+                                    className={`block w-full border rounded-md shadow-sm p-2 ${
+                                        isDarkMode 
+                                        ? 'dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-indigo-500 dark:focus:border-indigo-500' 
+                                        : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
+                                    }`}
+                                >
+                                    <option value="">-- Select Type --</option>
+                                    <option value="multi-choice">Multi-Choice</option>
+                                    <option value="poll">Poll</option>
+                                    <option value="open-ended">Open-Ended</option>
+                                    <option value="scales">Scales</option>
+                                    <option value="ranking">Ranking</option>
+                                    <option value="word-cloud">Word Cloud</option>
+                                    <option value="q&a">Q&A</option>
+                                </select>
+                            </div>
+                             {newPageType && (
+                                <PageConfigForm 
+                                    type={newPageType} 
+                                    onSubmit={handleAddPage} 
+                                />
+                            )}
+                         </div>
+                    )}
+
+                    {/* Pages List/Table */}
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead className={isDarkMode ? 'bg-gray-700' : 'bg-gray-50'}>
+                                <tr>
+                                    <th scope="col" className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Order</th>
+                                    <th scope="col" className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Title</th>
+                                    <th scope="col" className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Type</th>
+                                    <th scope="col" className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Config</th>
+                                    <th scope="col" className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Status</th>
+                                    <th scope="col" className={`px-4 py-3 text-center text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Actions</th>
+                                </tr>
+                            </thead>
+                             <tbody className={`divide-y ${isDarkMode ? 'divide-gray-700 bg-gray-800' : 'divide-gray-200 bg-white'}`}>
+                                {presentation.pages.length === 0 && (
+                                    <tr>
+                                        <td colSpan={6} className={`px-6 py-4 whitespace-nowrap text-sm text-center ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                            No pages added yet.
+                                        </td>
+                                    </tr>
+                                )}
+                                {presentation.pages.map((page, index) => (
+                                    <tr key={page.page_id} className={page.page_id === presentation.current_page_id ? (isDarkMode ? 'bg-blue-900/30' : 'bg-blue-50') : ''}>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm">{index + 1}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">{page.page_title || `Page ${index + 1}`}</td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm">{page.page_type}</td>
+                                        <td className="px-4 py-4 text-sm">
+                                             <FormattedPageConfig config={page.page_config} type={page.page_type} />
+                                        </td>
+                                         <td className="px-4 py-4 whitespace-nowrap text-sm">
+                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                                                page.status === 'active' 
+                                                ? (isDarkMode ? 'bg-green-800 text-green-100' : 'bg-green-100 text-green-800') 
+                                                : (isDarkMode ? 'bg-yellow-800 text-yellow-100' : 'bg-yellow-100 text-yellow-800')
+                                            }`}>
+                                                {page.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-4 whitespace-nowrap text-sm text-center space-x-1">
+                                            {/* Status Toggle Button */}
+                                            <button
+                                                 onClick={() => handleUpdatePageStatus(page.page_id, page.status === 'active' ? 'skipped' : 'active')}
+                                                disabled={presentation.state !== 'active'} // Can only change status when active
+                                                className={`px-2 py-1 text-xs rounded ${
+                                                     page.status === 'active' 
+                                                     ? (isDarkMode ? 'bg-yellow-700 hover:bg-yellow-600 text-yellow-100' : 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800') 
+                                                     : (isDarkMode ? 'bg-green-700 hover:bg-green-600 text-green-100' : 'bg-green-100 hover:bg-green-200 text-green-800')
+                                                 } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                                title={presentation.state !== 'active' ? "Presentation must be active to change status" : (page.status === 'active' ? 'Set to Skipped' : 'Set to Active')}
+                                            >
+                                                 {page.status === 'active' ? 'Skip' : 'Activate'}
+                                             </button>
+                                             
+                                             {/* Edit Button */}
+                                            <button 
+                                                onClick={() => handleEditPage(page.page_id)}
+                                                disabled={presentation.state !== 'draft' && presentation.state !== 'active'} // Allow editing in draft or active
+                                                className={`px-2 py-1 text-xs rounded ${
+                                                    isDarkMode 
+                                                    ? 'bg-blue-700 hover:bg-blue-600 text-blue-100' 
+                                                    : 'bg-blue-100 hover:bg-blue-200 text-blue-800'
+                                                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                                title={(presentation.state !== 'draft' && presentation.state !== 'active') ? "Cannot edit unless presentation is draft or active" : "Edit Page"}
+                                            >
+                                                Edit
+                                            </button>
+                                            
+                                            {/* Delete Button */}
+                                            <button 
+                                                onClick={() => handleDeletePage(page.page_id)} 
+                                                disabled={presentation.state !== 'draft' && presentation.state !== 'active'} // Allow deleting in draft or active
+                                                className={`px-2 py-1 text-xs rounded ${
+                                                    isDarkMode 
+                                                    ? 'bg-red-700 hover:bg-red-600 text-red-100' 
+                                                    : 'bg-red-100 hover:bg-red-200 text-red-800'
+                                                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                                                 title={(presentation.state !== 'draft' && presentation.state !== 'active') ? "Cannot delete unless presentation is draft or active" : "Delete Page"}
+                                           >
+                                                Delete
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
             </div>
 
-            {/* Pages List Section */}
-            <div className="p-6 flex flex-col items-center">
-              <div className="flex justify-between items-center mb-4 w-full">
-                   <h2 className="text-xl font-semibold">Pages</h2>
-                   <button 
-                      onClick={() => setIsAddingPage(true)}
-                      className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
-                      disabled={presentation.state !== 'draft'} // Only allow adding in draft state
-                      title={presentation.state !== 'draft' ? 'Cannot add pages to an active or completed presentation' : 'Add New Page'}
-                   >
-                      + Add Page
-                  </button>
-              </div>
-              
-              {/* Add New Page Form (Conditional) */}
-              {isAddingPage && (
-                  <div className="mb-6 p-4 border border-blue-200 rounded-lg bg-blue-50">
-                      <h3 className="text-lg font-medium mb-3">Add New Page</h3>
-                      <div className="space-y-3">
-                           <div>
-                               <label className="block text-sm font-medium text-gray-700">Page Title (Optional):</label>
-                              <input 
-                                  type="text" 
-                                  value={newPageTitle}
-                                  onChange={(e) => setNewPageTitle(e.target.value)}
-                                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm" 
-                                  placeholder="e.g., Icebreaker Question"
-                              />
-                          </div>
-                          <div>
-                               <label className="block text-sm font-medium text-gray-700">Page Type:</label>
-                              <select 
-                                  value={newPageType} 
-                                  onChange={(e) => setNewPageType(e.target.value)}
-                                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
-                              >
-                                  <option value="multi-choice">Multiple Choice</option>
-                                  <option value="open-text">Open Text</option>
-                                  <option value="poll">Poll</option>
-                                  <option value="word-cloud">Word Cloud</option>
-                                  <option value="q&a">Q&A</option>
-                                  <option value="rating">Rating</option>
-                              </select>
-                          </div>
-                          {/* Render specific config form based on type */} 
-                          <PageConfigForm type={newPageType} onSubmit={handleAddPage} initialConfig={null} />
-                      </div>
-                      <button 
-                          onClick={() => setIsAddingPage(false)} 
-                          className="mt-3 text-sm text-gray-600 hover:underline"
-                      >
-                          Cancel
-                      </button>
-                  </div>
-              )}
-
-              {/* Existing Pages Table */} 
-              <div className="overflow-x-auto">
-                  {presentation.pages.length === 0 && !isAddingPage ? (
-                      <p className="text-center text-gray-500 py-4">This presentation has no pages yet. Click "+ Add Page" to create one.</p>
-                  ) : presentation.pages.length > 0 ? (
-                      <table className="divide-y divide-gray-200">
-                          <thead className="bg-gray-50">
-                              <tr>
-                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/12">Order</th>
-                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-3/12">Title</th>
-                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-2/12">Type</th>
-                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-3/12">Config Preview</th>
-                                  <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-3/12">Actions</th>
-                              </tr>
-                          </thead>
-                          <tbody className="bg-white divide-y divide-gray-200">
-                              {presentation.pages.map((page) => {
-                                  const isActive = presentation.current_page_id === page.page_id;
-                                  return (
-                                      <tr key={page.page_id} className={`${isActive ? 'bg-blue-50' : ''}`}>
-                                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{page.page_order + 1}</td>
-                                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{page.page_title || `(No Title)`}</td>
-                                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                                              <span className="font-mono text-xs bg-gray-100 px-1 py-0.5 rounded">{page.page_type}</span>
-                                          </td>
-                                          <td className="px-4 py-3 text-sm text-gray-500">
-                                               {/* Use the helper component for formatted config */}
-                                               <FormattedPageConfig config={page.page_config} type={page.page_type} />
-                                          </td>
-                                          <td className="px-4 py-3 whitespace-nowrap text-sm space-x-2">
-                                              {/* Activate Button - Enable only if presentation is active */}
-                                              <button
-                                                  onClick={() => handleActivatePage(page.page_id)} 
-                                                  className={`px-2 py-1 rounded text-xs ${isActive ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed'}`}
-                                                  disabled={presentation.state !== 'active' || isUpdatingState}
-                                                  title={presentation.state !== 'active' ? 'Presentation must be active to change pages' : (isUpdatingState ? 'Processing...' : (isActive ? 'Page is Active' : 'Activate Page'))}
-                                              >
-                                                  {isActive ? 'Active' : 'Activate'}
-                                              </button>
-                                              {/* Edit/Delete Buttons - Enable only if presentation is draft */}
-                                              <button 
-                                                  onClick={() => handleEditPage(page.page_id)}
-                                                  className="text-xs text-blue-500 hover:text-blue-700 disabled:text-gray-400 disabled:cursor-not-allowed"
-                                                  disabled={presentation.state !== 'draft' || isUpdatingState}
-                                                  title={presentation.state !== 'draft' ? 'Cannot edit page: Presentation is not in draft state' : 'Edit Page'}
-                                              >
-                                                  Edit
-                                              </button>
-                                              <button 
-                                                  onClick={() => handleDeletePage(page.page_id)}
-                                                  className="text-xs text-red-500 hover:text-red-700 disabled:text-gray-400 disabled:cursor-not-allowed"
-                                                  disabled={presentation.state !== 'draft' || isUpdatingState}
-                                                  title={presentation.state !== 'draft' ? 'Cannot delete page: Presentation is not in draft state' : 'Delete Page'}
-                                              >
-                                                  Delete
-                                              </button>
-                                          </td>
-                                      </tr>
-                                  );
-                              })}
-                          </tbody>
-                      </table>
-                  ) : null} 
-               </div>
-            </div>
-          </div>
+            {/* Edit Page Modal */}
+            <EditPageModal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                page={editingPage}
+                onSubmit={handleUpdatePage}
+                isLoading={isUpdatingState}
+            />
+            
+            {/* Fullscreen Presentation */}
+            {isFullscreenMode && presentation && (
+                <FullscreenPresentation
+                    presentationId={presentation.presentation_id || presentation._id}
+                    activePages={presentation.pages.filter(p => p.status === 'active')} // Pass only active pages
+                    onClose={() => {
+                        setIsFullscreenMode(false);
+                         // Refetch presentation data after closing fullscreen in case audience page changed
+                        fetchPresentation();
+                    }}
+                    initialPageIndex={fullscreenPageIndex}
+                    onNavigate={handleActivatePage} // Pass the callback to update audience view
+                />
+            )}
         </div>
-        
-        {/* Render Edit Page Modal */}
-        <EditPageModal 
-            isOpen={isEditModalOpen}
-            onClose={() => setIsEditModalOpen(false)}
-            page={editingPage}
-            onSubmit={handleUpdatePage}
-            isLoading={isUpdatingState}
-        />
-      </main>
-    </div>
-  );
+    );
 };
 
 export default PresentationManagePage; 

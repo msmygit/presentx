@@ -5,9 +5,11 @@ import {
   findPresentationByAccessCode,
   addPageToPresentation,
   updatePresentationState,
-  setCurrentPage,
+  setCurrentAudiencePage,
   deletePageFromPresentation,
   updatePageInPresentation,
+  updatePageStatus,
+  setAllPagesStatus,
 } from '../services/presentation.service';
 import { addResponse } from '../services/response.service';
 import { z } from 'zod';
@@ -25,12 +27,66 @@ const createPresentationSchema = z.object({
   description: z.string().optional(),
 });
 
-const addPageSchema = z.object({
-    page_order: z.number().int().min(0),
-    page_type: z.enum(['multi-choice', 'poll', 'word-cloud', 'open-text', 'rating', 'q&a']), // Use enum from shared types
-    page_title: z.string().optional(),
-    page_config: z.object({}).passthrough(), // Basic validation, refine per page_type if needed
+// Base Page Schema
+const pageBaseSchema = z.object({
+  page_order: z.number().int().min(0),
+  page_title: z.string().optional(),
 });
+
+// Page Type Specific Config Schemas
+const multiChoiceConfigSchema = z.object({
+  question: z.string().min(1),
+  options: z.array(z.string().min(1)).min(1),
+  allow_multiple: z.boolean().optional(),
+});
+
+const pollConfigSchema = z.object({
+  question: z.string().min(1),
+  options: z.array(z.string().min(1)).min(1),
+});
+
+const openEndedConfigSchema = z.object({
+  question: z.string().min(1),
+  max_length: z.number().int().positive().optional(),
+});
+
+const scalesConfigSchema = z.object({
+  question: z.string().min(1),
+  scale_min: z.number().int(),
+  scale_max: z.number().int(),
+  label_min: z.string().optional(),
+  label_max: z.string().optional(),
+}).refine(data => data.scale_max > data.scale_min, {
+    message: "scale_max must be greater than scale_min",
+    path: ["scale_max"], // Path of the error
+});
+
+const rankingConfigSchema = z.object({
+  question: z.string().min(1),
+  items: z.array(z.string().min(1)).min(1), // Must have at least one item to rank
+});
+
+const wordCloudConfigSchema = z.object({
+  question: z.string().min(1),
+  max_length: z.number().int().positive().optional(),
+});
+
+const qnaConfigSchema = z.object({
+  allow_anonymous_questions: z.boolean().optional(),
+  allow_upvotes: z.boolean().optional(),
+});
+
+// Discriminated union for AddPageRequest validation
+const addPageSchema = z.discriminatedUnion("page_type", [
+  pageBaseSchema.extend({ page_type: z.literal("multi-choice"), page_config: multiChoiceConfigSchema }),
+  pageBaseSchema.extend({ page_type: z.literal("poll"), page_config: pollConfigSchema }),
+  pageBaseSchema.extend({ page_type: z.literal("open-ended"), page_config: openEndedConfigSchema }),
+  pageBaseSchema.extend({ page_type: z.literal("scales"), page_config: scalesConfigSchema }),
+  pageBaseSchema.extend({ page_type: z.literal("ranking"), page_config: rankingConfigSchema }),
+  pageBaseSchema.extend({ page_type: z.literal("word-cloud"), page_config: wordCloudConfigSchema }),
+  pageBaseSchema.extend({ page_type: z.literal("q&a"), page_config: qnaConfigSchema }),
+]);
+
 
 const submitResponseSchema = z.object({
     user_id: z.string().optional(), // Optional on input, default handled in service
@@ -45,10 +101,24 @@ const setCurrentPageSchema = z.object({
     pageId: z.string().uuid().nullable() // Expecting UUID or null
 });
 
-// Schema for updating a page (might be simple for now)
+// Schema for updating a page - allow partial updates of title or config
 const updatePageSchema = z.object({
-    page_title: z.string().optional(),
-    page_config: z.object({}).passthrough().optional(), // Allow any config object, make optional
+    page_title: z.string().min(1).optional(),
+    // Config validation is tricky on update as type isn't changing.
+    // We could re-use the discriminated union logic, but make fields optional?
+    // For now, allow any object, rely on service logic if needed.
+    page_config: z.object({}).passthrough().optional(),
+}).strict(); // Disallow extra fields
+
+
+// Schema for updating page status
+const updatePageStatusSchema = z.object({
+    status: z.enum(['active', 'skipped'])
+});
+
+// Schema for setting status for all pages
+const setAllPagesStatusSchema = z.object({
+    status: z.enum(['active', 'skipped'])
 });
 
 // --- Middleware for Async Handlers ---
@@ -208,14 +278,14 @@ presentationRouter.put('/:id', authenticateToken, asyncHandler(async (req, res) 
   res.json(updateResult.value);
 }));
 
-// [PUT] /api/presentations/:presentationId/current-page - Set the active page (presenter control)
+// [PUT] /api/presentations/:presentationId/current-page - Set the active page (audience view)
 presentationRouter.put(
     '/:presentationId/current-page',
-    // TODO: Add auth middleware
+    authenticateToken,
     asyncHandler(async (req: Request, res: Response) => {
         const { presentationId } = req.params;
         const { pageId } = setCurrentPageSchema.parse(req.body);
-        const updatedPresentation = await setCurrentPage(presentationId, pageId);
+        const updatedPresentation = await setCurrentAudiencePage(presentationId, pageId);
         res.status(200).json(updatedPresentation);
     })
 );
@@ -344,7 +414,44 @@ presentationRouter.put('/:id/state', authenticateToken, asyncHandler(async (req:
     }
 }));
 
-// --- New Route: Update Page ---
+// --- New Route: Set Status for All Pages ---
+presentationRouter.put(
+    '/:presentationId/pages/status', // Endpoint to update status for all pages
+    authenticateToken,
+    asyncHandler(async (req: Request, res: Response, next: express.NextFunction) => {
+        try {
+            const { presentationId } = req.params;
+            const userId = req.user!.id;
+            // Specific schema for this route
+            const setAllStatusSchema = z.object({ 
+                status: z.enum(['active', 'skipped'], { 
+                    required_error: "Status field is required ('active' or 'skipped')."
+                })
+             });
+            const { status } = setAllStatusSchema.parse(req.body);
+
+            const updatedPresentation = await setAllPagesStatus(presentationId, userId, status);
+            res.status(200).json(updatedPresentation);
+        } catch (error) {
+            console.error(`[PUT /:presentationId/pages/status] Error:`, error);
+            if (error instanceof z.ZodError) {
+                // Provide specific Zod errors
+                return res.status(400).json({ message: 'Invalid request body', errors: error.errors });
+            }
+            if (error instanceof Error) {
+                 if (error.message.includes('not found')) { 
+                    return res.status(404).json({ message: error.message });
+                } else if (error.message.includes('Forbidden')) {
+                    return res.status(403).json({ message: error.message });
+                } 
+            }
+            // Pass any other errors to the default handler
+            next(error);
+        }
+    })
+);
+
+// --- Route: Update Page (Content: Title/Config) ---
 presentationRouter.put(
     '/:presentationId/pages/:pageId',
     authenticateToken,
@@ -398,6 +505,37 @@ presentationRouter.put(
                 }
             }
             next(error); // Pass other errors to global handler
+        }
+    })
+);
+
+// --- New Route: Update Single Page Status ---
+presentationRouter.put(
+    '/:presentationId/pages/:pageId/status',
+    authenticateToken,
+    asyncHandler(async (req: Request, res: Response, next: express.NextFunction) => {
+        try {
+            const { presentationId, pageId } = req.params;
+            const userId = req.user!.id;
+            // Validate the incoming status
+            const statusSchema = z.object({ status: z.enum(['active', 'skipped']) });
+            const { status } = statusSchema.parse(req.body);
+
+            const updatedPresentation = await updatePageStatus(presentationId, pageId, userId, status);
+            res.status(200).json(updatedPresentation);
+        } catch (error) {
+            console.error(`[PUT /pages/:pageId/status] Error:`, error);
+            if (error instanceof z.ZodError) {
+                return res.status(400).json({ message: 'Invalid status value', errors: error.errors });
+            }
+             if (error instanceof Error) {
+                 if (error.message.includes('not found')) { 
+                    return res.status(404).json({ message: error.message });
+                } else if (error.message.includes('Forbidden')) {
+                    return res.status(403).json({ message: error.message });
+                } 
+            }
+            next(error);
         }
     })
 );

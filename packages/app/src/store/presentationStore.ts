@@ -123,7 +123,14 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
 
     const handleConnectError = (err: Error) => {
       console.error('Store: Socket connection error:', err.message);
-      set({ isConnected: false, isJoining: false, error: `Connection failed: ${err.message}` });
+      let errorMessage = `Connection failed: ${err.message}`;
+      
+      // Provide more specific error message for common issues
+      if (err.message.includes('xhr poll error') || err.message.includes('websocket error')) {
+        errorMessage = 'Unable to connect to the presentation server. Please check if the server is running and that you have network connectivity.';
+      }
+      
+      set({ isConnected: false, isJoining: false, error: errorMessage });
     };
 
     const handlePageChange = (payload: PageChangeEvent) => {
@@ -175,41 +182,28 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     if (get().isJoining || get().presentationId === id) return;
     
     console.log('Store: Attempting to join presentation:', id);
-    set({ isJoining: true, error: null, presentationId: id }); // Still set isJoining true here
+    set({ isJoining: true, error: null, presentationId: id });
 
     let fetchedPresentation: Presentation | null = get().presentation; // Get existing data first
 
     // Only fetch if presentation data isn't already loaded (e.g., by initializeFromJoinData)
     if (!fetchedPresentation || fetchedPresentation._id !== id) {
-      try {
-        console.log(`Store: Fetching presentation details for ${id}...`);
-        const response = await fetch(`http://localhost:8080/api/presentations/${id}`, {
-          // Add headers if needed (presenter flow)
-          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to fetch presentation data (status: ${response.status})`);
-        }
-        fetchedPresentation = await response.json();
-        set({ presentation: fetchedPresentation }); // Set fetched data
-        console.log(`Store: Successfully fetched presentation details for ${id}`);
-      } catch (fetchError: any) {
-        console.error('Failed to fetch presentation data:', fetchError);
-        set({ isJoining: false, error: `Failed to load presentation details: ${fetchError.message}`, presentationId: null });
-        return; // Stop the join process if fetching fails
-      }
-    } else {
-      console.log('Store: Using pre-loaded presentation data.');
+      console.error('No presentation data for ID:', id);
+      set({ 
+        isJoining: false, 
+        error: 'You must join a presentation using an access code, not directly by ID.', 
+        presentationId: null 
+      });
+      return; // Don't proceed with joining if we don't have the data
     }
 
-    // Find the initial page (assuming the presentation object has currentPageId or similar)
-    // Adjust 'currentPageId' based on your actual Presentation type from shared
-    const initialPageId = fetchedPresentation?.current_page_id || fetchedPresentation?.pages?.[0]?.page_id || null;
-    const initialPage = fetchedPresentation?.pages.find(p => p.page_id === initialPageId) || null;
+    console.log('Store: Using pre-loaded presentation data:', fetchedPresentation._id);
 
-    // Set initial page immediately after fetch (before socket logic finishes)
-    // This might cause a brief flash if socket join takes time
+    // Find the initial page based on the data
+    const initialPageId = fetchedPresentation.current_page_id || fetchedPresentation.pages?.[0]?.page_id || null;
+    const initialPage = fetchedPresentation.pages.find(p => p.page_id === initialPageId) || null;
+
+    // Set initial page immediately
     if (initialPage) {
         set({ currentPageId: initialPageId, currentPage: initialPage });
     }
@@ -227,24 +221,19 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
             const success = await joinPresentationRoom(id);
             if (success) {
                 console.log('Store: Successfully joined room:', id);
-                // Join successful, ensure initial page is set if not already
-                // (Could re-set here if server should dictate page on join)
                 set(state => ({
                     isJoining: false,
                     error: null,
-                    // Re-evaluate current page based on potentially updated fetchedPresentation
                     currentPageId: state.currentPageId || initialPageId,
                     currentPage: state.currentPage || initialPage
                 }));
             } else {
                 console.error('Store: Failed to join room:', id);
-                set({ isJoining: false, error: 'Failed to join presentation. Invalid ID or presentation not active?' });
-                // Consider resetting presentationId here? set({ presentationId: null });
+                set({ isJoining: false, error: 'Failed to join presentation. Please try again.', presentationId: null });
             }
         } catch (err) {
             console.error('Store: Error joining room:', err);
-            set({ isJoining: false, error: 'An error occurred while joining.' });
-            // set({ presentationId: null });
+            set({ isJoining: false, error: 'An error occurred while joining.', presentationId: null });
         }
     }
   },
