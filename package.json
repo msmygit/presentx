@@ -1,0 +1,40 @@
+{
+  "name": "presentx-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "version": "1.0.0",
+  "description": "Mentimeter-like app with React Native, Node.js, and Astra DB",
+  "scripts": {
+    "app": "npm run --workspace=@presentx/app",
+    "server": "npm run --workspace=@presentx/server",
+    "shared": "npm run --workspace=@presentx/shared",
+    "dev:server": "npm run dev --workspace=@presentx/server",
+    "dev:app": "npm run dev --workspace=@presentx/app",
+    "build:server": "npm run build --workspace=@presentx/server",
+    "build:app": "npm run build --workspace=@presentx/app",
+    "build:shared": "npm run build --workspace=@presentx/shared",
+    "lint": "npm run lint --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present && rm -rf node_modules"
+  },
+  "keywords": [
+    "react-native",
+    "expo",
+    "nodejs",
+    "astra-db",
+    "websockets",
+    "monorepo"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.10",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^8.0.0",
+    "postcss": "^8.5.3",
+    "prettier": "^3.0.0",
+    "tailwindcss": "^4.1.4",
+    "typescript": "~5.3.0"
+  }
+}

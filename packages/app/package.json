@@ -1,0 +1,39 @@
+{
+  "name": "@presentx/app",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "echo \"Run npm run dev instead\"",
+    "dev": "DO_NOT_TRACK=1 vite",
+    "build": "tsc && DO_NOT_TRACK=1 vite build",
+    "preview": "DO_NOT_TRACK=1 vite preview",
+    "lint": "eslint . --ext .ts,.tsx",
+    "clean": "rm -rf node_modules dist .expo"
+  },
+  "dependencies": {
+    "@types/node": "^20.17.32",
+    "axios": "^1.7.2",
+    "lucide-react": "^0.503.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.23.1",
+    "socket.io-client": "^4.7.5",
+    "zustand": "^4.5.6"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.20",
+    "@types/react-dom": "^18.3.6",
+    "@types/react-router-dom": "^5.3.3",
+    "@vitejs/plugin-react": "^4.4.1",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.6",
+    "postcss": "^8.4.31",
+    "postcss-import": "^15.1.0",
+    "tailwindcss": "^3.3.5",
+    "typescript": "~5.3.3",
+    "vite": "^5.4.18"
+  },
+  "private": true
+}

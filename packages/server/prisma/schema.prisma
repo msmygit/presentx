@@ -1,0 +1,55 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password      String
+  name          String?
+  presentations Presentation[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Presentation {
+  id          String        @id @default(uuid())
+  title       String
+  description String?
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  pages       Page[]
+  sessions    Session[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Page {
+  id             String       @id @default(uuid())
+  title          String
+  type           String      // 'multi-choice', 'word-cloud', 'poll', etc.
+  config         Json        // Stores page-specific configuration
+  order          Int         // Page order in presentation
+  presentationId String
+  presentation   Presentation @relation(fields: [presentationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Session {
+  id             String       @id @default(uuid())
+  presentationId String
+  presentation   Presentation @relation(fields: [presentationId], references: [id], onDelete: Cascade)
+  activePageIndex Int         @default(0)
+  startedAt      DateTime     @default(now())
+  endedAt        DateTime?
+  responses      Json?       // Stores audience responses
+} 

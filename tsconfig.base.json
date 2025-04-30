@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    // Base options - can be adjusted
+    "target": "ES2016",
+    "module": "CommonJS",
+    "lib": ["ESNext", "DOM"],
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "declaration": true,
+    "sourceMap": true,
+    "composite": true // Important for project references if used
+  }
+} 
