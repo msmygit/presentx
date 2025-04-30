@@ -15,8 +15,16 @@ import {
   WordCloudSummary,
   RatingSummary,
   QnASummary,
+  IndividualResponse,
+  PageResponseBatch,
+  SubmitResponseRequest,
+  ScalesSummary,
+  RankingSummary,
+  OpenEndedSummary,
+  RankingConfig,
 } from '@presentx/shared';
-import { broadcastPageChange } from '../utils/socket';
+import { broadcastPageChange, broadcastSummaryUpdate } from '../utils/socket';
+import { getPageResponsesCollection } from '../db/astra-client'; // <-- Import response collection getter
 
 // Simple random code generator (replace with something more robust if needed)
 function generateAccessCode(length = 6): string {
@@ -33,16 +41,20 @@ function getDefaultSummary(pageType: PageType): AudienceSummary {
     switch (pageType) {
         case 'multi-choice':
         case 'poll':
-            return {} as MultiChoiceSummary;
-        case 'rating':
-            return { counts: {}, average: 0 } as RatingSummary;
+            return { } as MultiChoiceSummary;
+        case 'scales':
+            return { counts: {}, average: 0 } as ScalesSummary;
+        case 'ranking':
+             return { item_average_ranks: {}, most_common_rankings: [] } as RankingSummary;
         case 'word-cloud':
-            return { top_words: {} } as WordCloudSummary;
+            return { top_words: {} } as WordCloudSummary; 
         case 'q&a':
             return { question_count: 0 } as QnASummary;
-        case 'open-text':
+        case 'open-ended':
+            return { response_count: 0, sample_responses: [] } as OpenEndedSummary;
         default:
-            return {} as OpenTextSummary;
+             console.warn(`[getDefaultSummary] Unknown page type: ${pageType}, returning empty summary.`);
+            return {};
     }
 }
 
@@ -449,4 +461,243 @@ export async function setAllPagesStatus(
     }
 
     return updateResult;
-} 
+}
+
+// --- Service to Recalculate and Broadcast Summary ---
+// This function calculates the summary based on ALL responses for a page
+export async function updateAndBroadcastSummary(
+    presentationId: string, 
+    pageId: string
+): Promise<void> {
+    console.log(`[updateAndBroadcastSummary] Starting for pId: ${presentationId}, pageId: ${pageId}`);
+    const presentationsCollection = getPresentationsCollection();
+    const responsesCollection = getPageResponsesCollection();
+
+    try {
+        // 1. Fetch the Presentation and the specific Page
+        const presentation = await presentationsCollection.findOne({ _id: presentationId });
+        if (!presentation) {
+            console.error(`[updateAndBroadcastSummary] Presentation ${presentationId} not found.`);
+            return;
+        }
+        const pageIndex = presentation.pages.findIndex((p: Page) => p.page_id === pageId);
+        if (pageIndex === -1) {
+            console.error(`[updateAndBroadcastSummary] Page ${pageId} not found in presentation ${presentationId}.`);
+            return;
+        }
+        const currentPage = presentation.pages[pageIndex];
+        const pageType = currentPage.page_type;
+        const pageConfig = currentPage.page_config; // Needed for Ranking type
+
+        // 2. Fetch ALL response batches for this page
+        const responseBatches = await responsesCollection.find({
+            presentation_id: presentationId,
+            page_id: pageId
+        }).toArray();
+
+        // 3. Aggregate all individual responses
+        const allResponses: IndividualResponse[] = responseBatches.flatMap(batch => batch.responses || []);
+        const totalResponseCount = allResponses.length;
+
+        console.log(`[updateAndBroadcastSummary] Found ${totalResponseCount} total responses for page ${pageId}.`);
+
+        // 4. Calculate the new summary based on PageType and all responses
+        let newSummary: AudienceSummary = {}; // Initialize empty
+
+        switch (pageType) {
+            case 'multi-choice':
+            case 'poll': {
+                const summary: MultiChoiceSummary = {};
+                allResponses.forEach(resp => {
+                    const choice = String(resp.response_data.choice); // Assuming response_data is { choice: "option" }
+                    if (choice) {
+                        summary[choice] = (summary[choice] || 0) + 1;
+                    }
+                });
+                newSummary = summary;
+                break;
+            }
+            case 'scales': {
+                const summary: ScalesSummary = { counts: {}, average: 0 };
+                let totalScore = 0;
+                allResponses.forEach(resp => {
+                    const value = parseInt(String(resp.response_data.value), 10); // Assuming { value: 3 }
+                    if (!isNaN(value)) {
+                        const key = String(value);
+                        summary.counts[key] = (summary.counts[key] || 0) + 1;
+                        totalScore += value;
+                    }
+                });
+                summary.average = totalResponseCount > 0 ? parseFloat((totalScore / totalResponseCount).toFixed(2)) : 0;
+                newSummary = summary;
+                break;
+            }
+            case 'ranking': {
+                 const config = pageConfig as RankingConfig;
+                 const summary: RankingSummary = { item_average_ranks: {} }; // Initialize
+                 const itemTotalRanks: Record<string, number> = {}; // Sum of ranks for each item
+                 const itemCounts: Record<string, number> = {}; // Count of times each item was ranked
+
+                 allResponses.forEach(resp => {
+                     const ranking = resp.response_data.ranking as string[]; // Assuming { ranking: ["Item A", "Item B"] }
+                     if (Array.isArray(ranking)) {
+                         ranking.forEach((item, index) => {
+                             const rank = index + 1; // 1-based rank
+                             if (item) { // Ensure item exists
+                                 itemTotalRanks[item] = (itemTotalRanks[item] || 0) + rank;
+                                 itemCounts[item] = (itemCounts[item] || 0) + 1;
+                             }
+                         });
+                     }
+                 });
+
+                 // Calculate average rank for each item defined in config
+                 config.items.forEach((item: string) => {
+                     if (itemCounts[item] > 0) {
+                         summary.item_average_ranks![item] = parseFloat((itemTotalRanks[item] / itemCounts[item]).toFixed(2));
+                     } else {
+                         summary.item_average_ranks![item] = 0; // Or null/undefined if preferred
+                     }
+                 });
+                 // TODO: Calculate most_common_rankings if needed (more complex)
+
+                 newSummary = summary;
+                 break;
+            }
+            case 'word-cloud': {
+                const summary: WordCloudSummary = { top_words: {} };
+                const wordCounts: Record<string, number> = {};
+                const MAX_WORDS = 100; // Limit number of words in summary
+
+                allResponses.forEach(resp => {
+                    // Basic processing: lower case, trim, split by space
+                    const text = String(resp.response_data.text || '').toLowerCase().trim();
+                    const words = text.split(/\s+/).filter(w => w.length > 1); // Split and ignore single chars
+                    
+                    words.forEach(word => {
+                        // Basic stop word check (can be expanded)
+                        if (!['the', 'a', 'is', 'it', 'and', 'or', 'of'].includes(word)) {
+                             wordCounts[word] = (wordCounts[word] || 0) + 1;
+                        }
+                    });
+                });
+
+                // Get top N words
+                 const sortedWords = Object.entries(wordCounts)
+                     .sort(([, countA], [, countB]) => countB - countA)
+                     .slice(0, MAX_WORDS);
+
+                 summary.top_words = Object.fromEntries(sortedWords);
+                newSummary = summary;
+                break;
+            }
+            case 'open-ended': {
+                const summary: OpenEndedSummary = { response_count: totalResponseCount, sample_responses: [] };
+                const MAX_SAMPLES = 5; // How many recent samples to store
+                
+                // Get the last N responses (assuming batches/responses are roughly chronological)
+                summary.sample_responses = allResponses
+                    .slice(-MAX_SAMPLES)
+                    .map(resp => String(resp.response_data.text || '')) // Assuming { text: "..." }
+                    .filter(text => text.length > 0); 
+
+                newSummary = summary;
+                break;
+            }
+             case 'q&a':
+                 // Q&A might not have a typical summary object, maybe just count?
+                 const qnaSummary: QnASummary = { question_count: totalResponseCount };
+                 // Fetch top questions based on upvotes if implemented later
+                 newSummary = qnaSummary;
+                 break;
+            default:
+                console.warn(`[updateAndBroadcastSummary] No summary calculation logic for page type: ${pageType}`);
+                newSummary = {}; // Default to empty if type not handled
+        }
+
+        console.log(`[updateAndBroadcastSummary] Calculated new summary for page ${pageId}:`, JSON.stringify(newSummary));
+
+        // 5. Update the Presentation Document
+        const updateResult = await presentationsCollection.updateOne(
+            { _id: presentationId, 'pages.page_id': pageId },
+            {
+                $set: {
+                    [`pages.${pageIndex}.audience_summary`]: newSummary,
+                    [`pages.${pageIndex}.audience_response_count`]: totalResponseCount,
+                    updated_at: new Date().toISOString(),
+                }
+            }
+        );
+
+        if (updateResult.matchedCount === 0) {
+            console.error(`[updateAndBroadcastSummary] Failed to match presentation/page for update. pId: ${presentationId}, pageId: ${pageId}`);
+            return; // Stop if update failed
+        }
+        if (updateResult.modifiedCount === 0) {
+             console.warn(`[updateAndBroadcastSummary] Presentation document was matched but not modified. pId: ${presentationId}, pageId: ${pageId}`);
+             // This might happen if the summary and count haven't actually changed.
+        }
+
+        console.log(`[updateAndBroadcastSummary] Successfully updated summary in DB for page ${pageId}.`);
+
+        // 6. Broadcast the Update
+        broadcastSummaryUpdate(presentationId, pageId, newSummary, totalResponseCount);
+        console.log(`[updateAndBroadcastSummary] Broadcasted summary update for page ${pageId}.`);
+
+    } catch (error) {
+        console.error(`[updateAndBroadcastSummary] Error processing summary for pId ${presentationId}, pageId ${pageId}:`, error);
+        // Decide if error should be re-thrown or just logged
+    }
+}
+
+// Function to delete a presentation and all associated responses
+export async function deletePresentationAndResponses(
+  presentationId: string, // Expecting _id
+  userId: string
+): Promise<boolean> {
+  const presentationsCollection = getPresentationsCollection();
+  const responsesCollection = getPageResponsesCollection();
+
+  console.log(`[Service deletePresentationAndResponses] Attempting deletion for presentation ${presentationId} by user ${userId}`);
+
+  // 1. Verify ownership and get presentation
+  const presentation = await presentationsCollection.findOne({ _id: presentationId });
+
+  if (!presentation) {
+    console.log(`[Service deletePresentationAndResponses] Presentation ${presentationId} not found.`);
+    // Throw error for route handler to catch
+    throw new Error(`Presentation ${presentationId} not found`); 
+  }
+
+  if (presentation.presenter_id !== userId) {
+     console.log(`[Service deletePresentationAndResponses] User ${userId} forbidden from deleting presentation ${presentationId}`);
+    // Throw error for route handler to catch
+    throw new Error(`Forbidden: You do not have permission to delete presentation ${presentationId}`);
+  }
+
+  // --- Proceed with deletion ---
+  try {
+    // 2. Delete all response batches associated with the presentation
+    console.log(`[Service deletePresentationAndResponses] Deleting responses for presentation ${presentationId}`);
+    const deleteResponsesResult = await responsesCollection.deleteMany({ presentation_id: presentationId });
+    console.log(`[Service deletePresentationAndResponses] Deleted ${deleteResponsesResult.deletedCount} response documents.`);
+
+    // 3. Delete the presentation document itself
+    console.log(`[Service deletePresentationAndResponses] Deleting presentation document ${presentationId}`);
+    const deletePresentationResult = await presentationsCollection.deleteOne({ _id: presentationId });
+
+    if (deletePresentationResult.deletedCount === 0) {
+      // This shouldn't happen if we found it earlier, but good to check
+      console.warn(`[Service deletePresentationAndResponses] Presentation ${presentationId} was not found during the final delete operation.`);
+      return false; // Indicate failure, though unexpected
+    }
+
+    console.log(`[Service deletePresentationAndResponses] Successfully deleted presentation ${presentationId} and associated data.`);
+    return true; // Indicate success
+
+  } catch (error) {
+    console.error(`[Service deletePresentationAndResponses] Database error during deletion for ${presentationId}:`, error);
+    // Re-throw the error to be handled by the route's error handler
+    throw new Error(`Failed to delete presentation ${presentationId} due to a database error.`);
+  }
+}

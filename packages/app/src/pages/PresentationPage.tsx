@@ -1,9 +1,16 @@
 import React, { useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 // Removed socket library imports, now handled by store
-import { Page, AudienceSummary, NewQuestionEvent, MultiChoiceConfig, Presentation } from '@presentx/shared';
+import { Page, AudienceSummary, NewQuestionEvent, MultiChoiceConfig, OpenEndedConfig, ScalesConfig, RankingConfig, WordCloudConfig, Presentation } from '@presentx/shared';
 import { usePresentationStore } from '@/store/presentationStore'; // Import the Zustand store
+import { getSocket, connectSocket } from '@/lib/socket'; // <-- Import socket functions
 import MultiChoiceViewer from '@/components/viewers/MultiChoiceViewer'; // Import the specific viewer
+// Import the new viewers
+import OpenEndedViewer from '@/components/viewers/OpenEndedViewer';
+import ScalesViewer from '@/components/viewers/ScalesViewer';
+import RankingViewer from '@/components/viewers/RankingViewer';
+import WordCloudViewer from '@/components/viewers/WordCloudViewer';
+// import QnaViewer from '@/components/viewers/QnaViewer'; // Assuming Q&A might be added later
 
 // --- Generic Page View (Placeholder/Fallback) ---
 const GenericPageView = ({ page }: { page: Page }) => {
@@ -18,8 +25,10 @@ const GenericPageView = ({ page }: { page: Page }) => {
 };
 
 // Updated PresentationContent to display dynamic data
-const PresentationContent = React.memo(({ id, currentPage, currentSummary, audienceCount, questions }: {
+const PresentationContent = React.memo(({ id, title, description, currentPage, currentSummary, audienceCount, questions }: {
     id: string;
+    title: string;
+    description?: string;
     currentPage: Page | null;
     currentSummary: AudienceSummary | null;
     audienceCount: number;
@@ -38,8 +47,19 @@ const PresentationContent = React.memo(({ id, currentPage, currentSummary, audie
             // TODO: Add cases for other page types (poll, word-cloud, etc.)
             // case 'word-cloud':
             //     return <WordCloudViewer page={currentPage as Page & { page_config: WordCloudConfig }} />;
+            case 'open-ended':
+                 return <OpenEndedViewer page={currentPage as Page & { page_config: OpenEndedConfig }} />;
+            case 'scales':
+                 return <ScalesViewer page={currentPage as Page & { page_config: ScalesConfig }} />;
+            case 'ranking':
+                 return <RankingViewer page={currentPage as Page & { page_config: RankingConfig }} />;
+             case 'word-cloud':
+                 return <WordCloudViewer page={currentPage as Page & { page_config: WordCloudConfig }} />;
+            // case 'q&a':
+            //     return <QnaViewer page={currentPage as Page & { page_config: QnAConfig }} />;
             default:
-                // Fallback for unknown or unhandled types
+                // Fallback for unknown or unhandled types (like 'poll' currently)
+                console.warn(`Rendering GenericPageView for unhandled page type: ${currentPage.page_type}`);
                 return <GenericPageView page={currentPage} />;
         }
     };
@@ -47,9 +67,13 @@ const PresentationContent = React.memo(({ id, currentPage, currentSummary, audie
     return (
         <div className="space-y-6">
             {/* Header */} 
-            <div className="flex justify-between items-center bg-gray-100 p-3 rounded-lg shadow">
-                <h2 className="text-xl font-bold text-gray-800">Presentation: {id}</h2>
-                <span className="text-lg font-semibold text-gray-700">Audience: {audienceCount}</span>
+            <div className="flex justify-between items-center bg-gray-100 dark:bg-neutral-800 p-3 rounded-lg shadow border border-gray-200 dark:border-neutral-700">
+                 {/* Display title and optional description */} 
+                 <div className="flex-1 overflow-hidden mr-4">
+                    <h2 className="text-xl font-bold text-gray-800 dark:text-white truncate" title={title}>{title}</h2> 
+                     {description && <p className="text-xs text-gray-500 dark:text-gray-400 truncate" title={description}>{description}</p>}
+                 </div>
+                <span className="text-lg font-semibold text-gray-700 dark:text-neutral-300 flex-shrink-0">Audience: {audienceCount}</span>
             </div>
             
             {/* Current Page View */} 
@@ -94,10 +118,11 @@ function PresentationPage() {
 
   // Use selectors for reactive state
   const { 
-      presentationId, currentPage, currentSummary, audienceCount, questions, 
+      presentationId, presentation, currentPage, currentSummary, audienceCount, questions, 
       isConnected, isJoining, error 
   } = usePresentationStore(state => ({
       presentationId: state.presentationId,
+      presentation: state.presentation,
       currentPage: state.currentPage,
       currentSummary: state.currentSummary,
       audienceCount: state.audienceCount,
@@ -175,10 +200,10 @@ function PresentationPage() {
   const isLoading = isJoining || (isConnected && !currentPage && !error);
 
   return (
-    <div className="container mx-auto p-4">
+    <div className="container mx-auto p-4 min-h-screen bg-neutral-50 dark:bg-neutral-900 transition-colors duration-200">
         {/* Error Display */} 
         {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+            <div className="bg-red-100 dark:bg-red-900/30 border border-red-400 text-red-700 dark:text-red-200 px-4 py-3 rounded relative mb-4" role="alert">
                 <strong className="font-bold">Error: </strong>
                 <span className="block sm:inline">{error}</span>
                 
@@ -195,9 +220,9 @@ function PresentationPage() {
 
         {/* Loading / Connecting Display */} 
         {!error && (isJoining || !isConnected) && (
-             <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative mb-4" role="status">
+             <div className="bg-blue-100 dark:bg-blue-800/30 border border-blue-400 text-blue-700 dark:text-blue-200 px-4 py-3 rounded relative mb-4" role="status">
                 <div className="flex items-center">
-                    <svg className="animate-spin mr-3 h-5 w-5 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin mr-3 h-5 w-5 text-blue-700 dark:text-blue-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
@@ -209,11 +234,22 @@ function PresentationPage() {
                 <div className="mt-4 flex justify-between">
                     <button 
                         onClick={() => {
-                            // Try reconnecting
-                            const storeId = usePresentationStore.getState().presentationId;
-                            if (storeId) {
-                                leaveAction();
-                                setTimeout(() => joinAction(storeId), 500);
+                            // Simpler Retry: Just try connecting/joining again
+                            console.log('Retry button clicked');
+                            const storeState = usePresentationStore.getState();
+                            const socket = getSocket(); // Get socket instance from lib
+                            
+                            if (!socket.connected) {
+                                console.log('Retry: Socket not connected, calling connectSocket()');
+                                connectSocket(); // Attempt to reconnect
+                            } else if (storeState.presentationId && !storeState.isJoining) {
+                                // If connected but maybe join failed/stalled
+                                console.log('Retry: Socket connected, calling joinPresentation() again for', storeState.presentationId);
+                                storeState.joinPresentation(storeState.presentationId).catch(err => {
+                                    console.error("Error during retry join:", err);
+                                });
+                            } else {
+                                 console.log('Retry: Socket connected and already joining or no presentationId, doing nothing.');
                             }
                         }}
                         className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
@@ -234,6 +270,8 @@ function PresentationPage() {
          {isConnected && !error && presentationId === routeId && (
             <PresentationContent 
                 id={presentationId} 
+                title={presentation?.title || 'Presentation'}
+                description={presentation?.description}
                 currentPage={currentPage} 
                 currentSummary={currentSummary} 
                 audienceCount={audienceCount} 
@@ -243,7 +281,7 @@ function PresentationPage() {
          
          {/* Placeholder while loading initial page */} 
          {isConnected && !error && presentationId === routeId && !currentPage && !isJoining && (
-            <div className="bg-gray-100 p-4 rounded text-center">Waiting for presentation to start...</div>
+            <div className="bg-gray-100 dark:bg-neutral-800 p-4 rounded text-center text-gray-700 dark:text-gray-300">Waiting for presentation to start...</div>
          )}
     </div>
   );

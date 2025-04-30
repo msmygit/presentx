@@ -10,6 +10,7 @@ import {
   updatePageInPresentation,
   updatePageStatus,
   setAllPagesStatus,
+  deletePresentationAndResponses,
 } from '../services/presentation.service';
 import { addResponse } from '../services/response.service';
 import { z } from 'zod';
@@ -539,6 +540,42 @@ presentationRouter.put(
         }
     })
 );
+
+// [DELETE] /api/presentations/:id - Delete a presentation and its responses
+presentationRouter.delete('/:id', authenticateToken, asyncHandler(async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  const presentationId = req.params.id;
+  const userId = req.user.id;
+  
+  console.log(`[DELETE /api/presentations/:id] Request to delete presentation ${presentationId} by user ${userId}`);
+
+  try {
+    const success = await deletePresentationAndResponses(presentationId, userId);
+    
+    if (!success) {
+      // This could mean not found or forbidden, service throws specific errors
+      // If the service didn't throw but returned false, treat as not found.
+       console.log(`[DELETE /api/presentations/:id] Service returned false (likely not found or forbidden) for ID: ${presentationId}`);
+      return res.status(404).json({ error: 'Presentation not found or you do not have permission to delete it.' });
+    }
+
+    console.log(`[DELETE /api/presentations/:id] Successfully deleted presentation ${presentationId}`);
+    res.status(204).send(); // Success, no content
+  } catch (error) {
+     console.error(`[DELETE /api/presentations/:id] Error deleting presentation ${presentationId}:`, error);
+     if (error instanceof Error) {
+       if (error.message.includes('not found')) {
+         return res.status(404).json({ message: error.message });
+       } else if (error.message.includes('Forbidden')) {
+         return res.status(403).json({ message: error.message });
+       }
+     }
+     // Forward other errors to the generic handler
+     return res.status(500).json({ error: 'Failed to delete presentation due to an internal error.' });
+  }
+}));
 
 // --- Error Handler Middleware (Add this to index.ts after routes) ---
 // Example basic error handler - customize as needed

@@ -14,6 +14,7 @@ interface ServerToClientEvents {
   summary_update: (payload: SummaryUpdateEvent) => void;
   audience_count_update: (payload: AudienceCountUpdateEvent) => void;
   new_question: (payload: NewQuestionEvent) => void;
+  joined_presentation: (payload: { audienceCount: number }) => void;
   error: (payload: { message: string }) => void;
 }
 
@@ -57,6 +58,10 @@ export function setupWebSocket(
         const room = io?.sockets.adapter.rooms.get(presentationId);
         const count = room ? room.size : 0;
         broadcastAudienceCount(presentationId, count);
+
+        // --> Emit confirmation back to the client that joined <--
+        console.log(`[Socket ${socket.id}] Emitting joined_presentation for room ${presentationId}`);
+        socket.emit('joined_presentation', { audienceCount: count });
 
         if (callback) callback(true);
       } catch (err) {

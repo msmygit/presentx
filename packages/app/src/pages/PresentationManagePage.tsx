@@ -1,9 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Presentation, Page, PageType, AudienceSummary } from '@presentx/shared';
+import { Presentation, Page, PageType, AudienceSummary, MultiChoiceSummary, OpenEndedSummary, ScalesSummary, RankingSummary, WordCloudSummary } from '@presentx/shared';
 import Header from '@/components/Header';
 import { useTheme } from '@/store/themeStore';
 import { ArrowLeft, ArrowRight, Maximize2, X } from 'lucide-react';
+
+// Import Summary Display Components
+import MultiChoiceSummaryDisplay from '@/components/summaries/MultiChoiceSummaryDisplay';
+import OpenEndedSummaryDisplay from '@/components/summaries/OpenEndedSummaryDisplay';
+import ScalesSummaryDisplay from '@/components/summaries/ScalesSummaryDisplay';
+import RankingSummaryDisplay from '@/components/summaries/RankingSummaryDisplay';
+import WordCloudSummaryDisplay from '@/components/summaries/WordCloudSummaryDisplay';
+// import QnaSummaryDisplay from '@/components/summaries/QnaSummaryDisplay'; // If needed later
 
 // --- Helper Components ---
 
@@ -549,110 +557,116 @@ const FormattedPageConfig = ({ config, type }: { config: any, type: PageType }) 
 
 // --- Fullscreen Presentation Component ---
 interface FullscreenPresentationProps {
-    presentationId: string; // Need the presentation ID for API calls
-    activePages: Page[]; // Receive only active pages
+    presentationId: string; 
+    activePages: Page[]; 
     onClose: () => void;
     initialPageIndex?: number;
-    onNavigate: (pageId: string | null) => Promise<void>; // Callback to update audience view
+    onNavigate: (pageId: string | null) => Promise<void>; 
 }
 
 const FullscreenPresentation: React.FC<FullscreenPresentationProps> = ({
-    presentationId,
+    presentationId, // Keep presentationId if needed for other actions
     activePages,
     onClose,
     initialPageIndex = 0,
     onNavigate,
 }) => {
-    const { isDarkMode } = useTheme();
     const [currentPageIndex, setCurrentPageIndex] = useState(initialPageIndex);
-    const [isLoadingSummary, setIsLoadingSummary] = useState(false);
-    const [summaryData, setSummaryData] = useState<AudienceSummary | null>(null);
-    const [errorSummary, setErrorSummary] = useState<string | null>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    
-    const currentPage = activePages[currentPageIndex] || null;
-    
-    // Set focus on the container to catch keyboard events
-    useEffect(() => {
-        if (containerRef.current) {
-            containerRef.current.focus();
-        }
-    }, []);
+    // REMOVED summary fetching state
+    // const [summaryData, setSummaryData] = useState<AudienceSummary | null>(null);
+    // const [isSummaryLoading, setIsSummaryLoading] = useState(false);
+    // const [summaryError, setSummaryError] = useState<string | null>(null);
+    const { isDarkMode } = useTheme();
 
-    // Effect to update audience view and fetch summary when page changes
-    useEffect(() => {
-        const currentPageId = currentPage?.page_id ?? null;
-        
-        // Update audience view
-        onNavigate(currentPageId).catch(err => {
-            console.error("Error updating audience view:", err);
-            // Handle error display if needed
-        });
-        
-        // Fetch summary for the new current page
-        if (currentPageId) {
-            fetchSummary(currentPageId);
-        } else {
-            // If no current page (e.g., empty activePages list), clear summary
-            setSummaryData(null);
-            setErrorSummary(null);
+    const currentPage = activePages[currentPageIndex];
+
+    // Navigate function
+    const navigateToPage = useCallback(async (newIndex: number) => {
+        if (newIndex >= 0 && newIndex < activePages.length) {
+            const newPage = activePages[newIndex];
+            setCurrentPageIndex(newIndex);
+            // REMOVED local summary fetch trigger
+            // setSummaryData(null); // Clear old summary
+            // fetchSummary(newPage.page_id);
+            try {
+                 // Call the onNavigate prop to update the audience view
+                 await onNavigate(newPage.page_id);
+                 console.log(`Fullscreen: Navigated to page ${newPage.page_id}, audience view updated.`);
+             } catch (error) {
+                 console.error("Fullscreen: Failed to update audience page:", error);
+                 // Optionally show an error to the presenter
+             }
         }
-        // Depend only on the ID and the stable onNavigate function reference
-    }, [currentPage?.page_id, onNavigate]);
-    
+    }, [activePages, onNavigate]);
+
+     // REMOVED fetchSummary function
+    /*
     const fetchSummary = async (pageId: string) => {
-        setIsLoadingSummary(true);
-        setErrorSummary(null);
-        setSummaryData(null); // Clear previous summary
+        console.log(`Fetching summary for page: ${pageId}`);
+        setIsSummaryLoading(true);
+        setSummaryError(null);
         try {
-            console.log(`TODO: Fetch summary for page ${pageId} from presentation ${presentationId}`);
-            // Example placeholder
-            await new Promise(resolve => setTimeout(resolve, 500)); // Simulate network delay
-            // const mockSummary: AudienceSummary = { example: `Mock summary for ${pageId}` };
-            // Temp fix for lint error until AudienceSummary is defined/used properly
-            const mockSummary: AudienceSummary = {} as AudienceSummary; 
-            setSummaryData(mockSummary);
+            const token = localStorage.getItem('token');
+            const response = await fetch(`/api/presentations/${presentationId}/pages/${pageId}/summary`, {
+                 headers: {
+                     'Authorization': `Bearer ${token}`,
+                 },
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to fetch summary (Status: ${response.status})`);
+            }
+            const data = await response.json();
+             console.log("Received summary data:", data);
+            setSummaryData(data.summary); // Assuming API returns { summary: ... }
         } catch (err) {
-            console.error("Failed to fetch summary:", err);
-            setErrorSummary(err instanceof Error ? err.message : 'Failed to load summary');
+            console.error("Error fetching summary:", err);
+            setSummaryError(err instanceof Error ? err.message : 'Unknown summary error');
+            setSummaryData(null);
         } finally {
-            setIsLoadingSummary(false);
+            setIsSummaryLoading(false);
         }
     };
+    */
 
-    // Handle keyboard navigation
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        if (e.key === 'Escape') {
-            onClose();
-        } else if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
-            // Next page (within active pages)
-            setCurrentPageIndex(prev => Math.min(prev + 1, activePages.length - 1));
-        } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-            // Previous page (within active pages)
-            setCurrentPageIndex(prev => Math.max(prev - 1, 0));
+    // Effect to fetch summary when page changes or initially
+    // REMOVED - Summary now comes directly from the currentPage prop passed via activePages
+    /*
+    useEffect(() => {
+        if (currentPage) {
+            // Initial fetch or fetch on page change
+             console.log(`Current page changed to ${currentPage.page_id}, fetching summary...`);
+             setSummaryData(null); // Clear previous summary before fetching new one
+             fetchSummary(currentPage.page_id);
         }
-    }, [onClose, activePages.length]);
-    
-    const goToNextPage = useCallback(() => {
-        if (currentPageIndex < activePages.length - 1) {
-            setCurrentPageIndex(currentPageIndex + 1);
-        }
-    }, [currentPageIndex, activePages.length]);
-    
-    const goToPrevPage = useCallback(() => {
-        if (currentPageIndex > 0) {
-            setCurrentPageIndex(currentPageIndex - 1);
-        }
-    }, [currentPageIndex]);
-    
+    }, [currentPage?.page_id]); // Depend on page_id
+    */
+
+    // Keyboard navigation effect
+    useEffect(() => {
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'ArrowRight' || event.key === ' ' || event.key === 'PageDown') {
+                navigateToPage(currentPageIndex + 1);
+            } else if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
+                navigateToPage(currentPageIndex - 1);
+            } else if (event.key === 'Escape') {
+                onClose();
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [currentPageIndex, navigateToPage, onClose, activePages.length]);
+
     if (!currentPage) {
-        // This case should ideally not happen if the Present button checks for active pages
         return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black text-white">
-                <p>No active pages to present.</p>
+            <div className={`fixed inset-0 z-50 flex items-center justify-center ${isDarkMode ? 'bg-black' : 'bg-white'}`}>
+                <p className={isDarkMode ? 'text-white' : 'text-black'}>No active page selected or available.</p>
                 <button 
-                    onClick={onClose}
-                    className="absolute top-4 right-4 text-white hover:text-gray-300"
+                    onClick={onClose} 
+                    className={`absolute top-4 right-4 p-2 rounded-full ${isDarkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-200'}`}
+                    aria-label="Close Fullscreen"
                 >
                     <X size={24} />
                 </button>
@@ -660,174 +674,122 @@ const FullscreenPresentation: React.FC<FullscreenPresentationProps> = ({
         );
     }
     
-    // Render the current page
-    return (
-        <div 
-            ref={containerRef}
-            className={`fixed inset-0 z-50 flex flex-col items-center p-8 ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-white text-gray-900'}`}
-            tabIndex={0}
-            onKeyDown={handleKeyDown}
-        >
-             {/* Top Bar: Close button and Page indicator */}
-            <div className="w-full flex justify-between items-center mb-4">
-                <div className="absolute left-1/2 transform -translate-x-1/2 bg-gray-200 dark:bg-gray-700 rounded-full px-3 py-1 text-sm text-gray-900 dark:text-white">
-                     {currentPageIndex + 1} / {activePages.length} (Active Pages)
-                </div>
-                 <button 
-                    onClick={onClose}
-                    className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-100 p-2 rounded-full bg-white/30 dark:bg-black/30 backdrop-blur-sm"
-                    aria-label="Close fullscreen"
-                >
-                    <X size={20} />
-                </button>
-            </div>
-            
-            {/* Main Content Area: Page View + Summary */}
-            <div className="w-full flex-grow flex flex-col md:flex-row items-stretch justify-center gap-8 overflow-hidden">
-                {/* Page Content */}
-                <div className="w-full md:w-2/3 flex flex-col justify-center items-center bg-gray-50 dark:bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-y-auto">
-                    <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center">{currentPage.page_title || `Page ${currentPage.page_order + 1}`}</h2>
-                    
-                    {currentPage.page_type === 'multi-choice' && (
-                        <div className="w-full max-w-lg space-y-4">
-                            <h3 className="text-xl font-semibold text-center">{currentPage.page_config && 'question' in currentPage.page_config ? currentPage.page_config.question : ''}</h3>
-                            <div className="space-y-3">
-                                {currentPage.page_config && 'options' in currentPage.page_config && 
-                                 Array.isArray(currentPage.page_config.options) && 
-                                 currentPage.page_config.options.map((option: string, idx: number) => (
-                                    <div key={idx} className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg text-lg bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white">
-                                        {option}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                    
-                    {currentPage.page_type === 'open-ended' && currentPage.page_config && 'question' in currentPage.page_config && (
-                        <div className="w-full max-w-lg space-y-4 text-center">
-                            <h3 className="text-xl font-semibold">{currentPage.page_config.question || 'Open-Ended Question'}</h3>
-                            <p className="text-gray-500 dark:text-gray-400">Audience can submit text responses.</p>
-                            {/* Summary will show responses/count */}
-                        </div>
-                    )}
-                    
-                    {currentPage.page_type === 'scales' && currentPage.page_config && 'question' in currentPage.page_config && 'scale_min' in currentPage.page_config && 'scale_max' in currentPage.page_config && (
-                        <div className="w-full max-w-lg space-y-4 text-center">
-                             <h3 className="text-xl font-semibold">{currentPage.page_config.question || 'Scale Rating'}</h3>
-                             <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mt-2">
-                                 <span>{currentPage.page_config.label_min || currentPage.page_config.scale_min}</span>
-                                 <span>{currentPage.page_config.label_max || currentPage.page_config.scale_max}</span>
-                             </div>
-                             {/* Summary will show distribution/average */}
-                        </div>
-                    )}
-                    
-                    {currentPage.page_type === 'ranking' && currentPage.page_config && 'question' in currentPage.page_config && 'items' in currentPage.page_config && Array.isArray(currentPage.page_config.items) && (
-                        <div className="w-full max-w-lg space-y-4">
-                            <h3 className="text-xl font-semibold text-center">{currentPage.page_config.question || 'Ranking Task'}</h3>
-                            <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-3">Audience needs to rank the following:</p>
-                             <div className="space-y-2">
-                                {currentPage.page_config.items.map((item: string, idx: number) => (
-                                    <div key={idx} className="p-2 border border-gray-300 dark:border-gray-600 rounded-lg text-md bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white">
-                                        {idx + 1}. {item}
-                                    </div>
-                                ))}
-                            </div>
-                             {/* Summary will show average ranks */}
-                        </div>
-                    )}
-                    
-                    {currentPage.page_type === 'word-cloud' && currentPage.page_config && 'question' in currentPage.page_config && (
-                        <div className="w-full max-w-lg space-y-4 text-center">
-                            <h3 className="text-xl font-semibold">{currentPage.page_config.question || 'Word Cloud Prompt'}</h3>
-                            <p className="text-gray-500 dark:text-gray-400">Audience submits words to build the cloud.</p>
-                            {/* Summary will display the word cloud itself */}
-                        </div>
-                    )}
+     // Helper to render the correct summary component
+     const renderSummary = (page: Page) => {
+         const summary = page.audience_summary;
+         const totalResponses = page.audience_response_count;
 
-                    {currentPage.page_type === 'poll' && currentPage.page_config && 'question' in currentPage.page_config && 'options' in currentPage.page_config && Array.isArray(currentPage.page_config.options) && (
-                         <div className="w-full max-w-lg space-y-4">
-                            <h3 className="text-xl font-semibold text-center">{currentPage.page_config.question || 'Poll Question'}</h3>
-                            <div className="space-y-3">
-                                {currentPage.page_config.options.map((option: string, idx: number) => (
-                                    <div key={idx} className="p-3 border border-gray-300 dark:border-gray-600 rounded-lg text-lg bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-white">
-                                        {option}
-                                    </div>
-                                ))}
-                            </div>
-                            {/* Summary will show poll results */}
-                        </div>
-                    )}
-                    
-                     {currentPage.page_type === 'q&a' && (
-                        <div className="w-full max-w-lg space-y-4 text-center">
-                            <h3 className="text-xl font-semibold">Q&A Session</h3>
-                            <p className="text-gray-500 dark:text-gray-400">Audience can submit questions.</p>
-                            {/* Summary will show submitted questions */}
-                        </div>
-                    )}
-                    
-                    {/* Fallback for any unexpected or unimplemented types */}
-                    {![ 'multi-choice', 'open-ended', 'scales', 'ranking', 'word-cloud', 'poll', 'q&a'].includes(currentPage.page_type) && (
-                        <div className="p-6 text-center">
-                            <h3 className="text-xl font-semibold">
-                                {currentPage.page_type.replace('-', ' ').replace(/\\b\\w/g, l => l.toUpperCase())} Page
-                            </h3>
-                            <p className="mt-4 text-gray-500 dark:text-gray-400">Presenter view for this page type not fully implemented.</p>
-                            <FormattedPageConfig config={currentPage.page_config} type={currentPage.page_type} />
-                        </div>
-                    )}
-                </div>
-                
-                {/* Audience Summary */}
-                <div className="w-full md:w-1/3 flex flex-col bg-gray-50 dark:bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-y-auto">
-                    <h3 className="text-xl font-semibold mb-4 text-center">Audience Summary</h3>
-                    {isLoadingSummary && <p className="text-center text-gray-500 dark:text-gray-400">Loading summary...</p>}
-                    {errorSummary && <p className="text-center text-red-500">Error: {errorSummary}</p>}
-                    {summaryData && !isLoadingSummary && !errorSummary && (
-                        <div className="text-sm">
-                            {/* TODO: Replace with actual summary display based on fetched data */}
-                            <pre className="whitespace-pre-wrap break-words bg-gray-100 dark:bg-gray-700 p-3 rounded">{JSON.stringify(summaryData, null, 2)}</pre>
-                        </div>
-                    )}
-                    {!summaryData && !isLoadingSummary && !errorSummary && (
-                        <p className="text-center text-gray-400 dark:text-gray-500">No summary data available.</p>
-                    )}
-                </div>
+         if (!summary || totalResponses === 0) {
+             return <p className="text-center text-sm text-gray-500 dark:text-gray-400 italic mt-4">No responses yet.</p>;
+         }
+
+         // Add specific checks for summary content if needed (e.g., ranking needs item_average_ranks)
+         if (page.page_type === 'ranking' && !(summary as RankingSummary).item_average_ranks) {
+             return <p className="text-center text-sm text-gray-500 dark:text-gray-400 italic mt-4">Summary data not available yet.</p>;
+         }
+         if (page.page_type === 'word-cloud' && !(summary as WordCloudSummary).top_words) {
+              return <p className="text-center text-sm text-gray-500 dark:text-gray-400 italic mt-4">Summary data not available yet.</p>;
+         }
+
+         switch (page.page_type) {
+             case 'multi-choice':
+             case 'poll':
+                 return <MultiChoiceSummaryDisplay summary={summary as MultiChoiceSummary} totalResponses={totalResponses} />;
+             case 'open-ended':
+                 return <OpenEndedSummaryDisplay summary={summary as OpenEndedSummary} />;
+             case 'scales':
+                 return <ScalesSummaryDisplay summary={summary as ScalesSummary} config={page.page_config as ScalesConfig} totalResponses={totalResponses} />;
+             case 'ranking':
+                 return <RankingSummaryDisplay summary={summary as RankingSummary} config={page.page_config as RankingConfig} totalResponses={totalResponses} />;
+             case 'word-cloud':
+                 return <WordCloudSummaryDisplay summary={summary as WordCloudSummary} />;
+            // case 'q&a':
+            //     return <QnaSummaryDisplay summary={summary as QnASummary} />; 
+             default:
+                 return <pre className="text-xs bg-gray-100 dark:bg-gray-800 p-2 rounded border border-gray-300 dark:border-gray-700">{JSON.stringify(summary, null, 2)}</pre>;
+         }
+     };
+
+    return (
+        <div className={`fixed inset-0 z-50 flex flex-col ${isDarkMode ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-black'}`}>
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b ${isDarkMode ? 'border-neutral-700' : 'border-neutral-300'} flex-shrink-0">
+                 <span className="text-sm font-medium">
+                     Page {currentPageIndex + 1} of {activePages.length}
+                 </span>
+                 <h2 className="text-xl font-semibold truncate text-center">
+                     {currentPage.page_title || `Page ${currentPageIndex + 1}`}
+                 </h2>
+                 <button 
+                     onClick={onClose} 
+                     className={`p-1.5 rounded-full ${isDarkMode ? 'text-gray-300 hover:bg-neutral-700' : 'text-gray-600 hover:bg-neutral-300'}`}
+                     aria-label="Close Fullscreen"
+                 >
+                     <X size={20} />
+                 </button>
+             </div>
+
+            {/* Content Area (split view) */}
+             <div className="flex-grow grid grid-cols-1 md:grid-cols-2 gap-0 overflow-hidden">
+                 {/* Left Side: Page Content/Question */}
+                <div className="flex flex-col items-center justify-center p-6 md:p-10 overflow-y-auto border-r border-neutral-300 dark:border-neutral-700">
+                     <h3 className="text-2xl md:text-3xl font-bold mb-6 text-center">
+                         {currentPage.page_type === 'q&a' 
+                            ? 'Q&A Session' 
+                            : (currentPage.page_config as any)?.question || '-'}
+                     </h3>
+                     {/* Optionally display options/items/scale info here if needed */}
+                      {currentPage.page_type === 'multi-choice' && (currentPage.page_config as MultiChoiceConfig).options && (
+                         <ul className="list-disc list-inside text-left space-y-1 mt-4 text-lg text-neutral-700 dark:text-neutral-300">
+                            {(currentPage.page_config as MultiChoiceConfig).options.map(opt => <li key={opt}>{opt}</li>)}
+                         </ul>
+                     )}
+                     {currentPage.page_type === 'ranking' && (currentPage.page_config as RankingConfig).items && (
+                         <ul className="list-decimal list-inside text-left space-y-1 mt-4 text-lg text-neutral-700 dark:text-neutral-300">
+                            {(currentPage.page_config as RankingConfig).items.map(item => <li key={item}>{item}</li>)}
+                         </ul>
+                     )}
+                      {currentPage.page_type === 'scales' && (
+                         <div className="flex justify-between w-full max-w-xs mt-4 text-lg text-neutral-700 dark:text-neutral-300">
+                             <span>{(currentPage.page_config as ScalesConfig).label_min || (currentPage.page_config as ScalesConfig).scale_min}</span>
+                             <span>{(currentPage.page_config as ScalesConfig).label_max || (currentPage.page_config as ScalesConfig).scale_max}</span>
+                         </div>
+                     )}
+                 </div>
+
+                 {/* Right Side: Audience Summary */}
+                 <div className="flex flex-col p-6 md:p-10 overflow-y-auto bg-white dark:bg-neutral-800">
+                     <h4 className="text-xl font-semibold mb-4 text-neutral-800 dark:text-neutral-100">Live Results</h4>
+                      <div className="flex-grow flex items-center justify-center">
+                          <div className="w-full max-w-md">
+                             {renderSummary(currentPage)}
+                          </div>
+                      </div>
+                      <p className="text-xs text-center text-neutral-500 dark:text-neutral-400 mt-4">
+                          Total Responses: {currentPage.audience_response_count || 0}
+                      </p>
+                 </div>
             </div>
-            
-            {/* Bottom Bar: Navigation buttons and Help Text */}
-            <div className="w-full mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <div className="w-full flex justify-between mb-2">
-                    <button
-                        onClick={goToPrevPage}
-                        className={`flex items-center px-4 py-2 rounded-lg text-sm ${
-                            currentPageIndex > 0 
-                                ? 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600' 
-                                : 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800'
-                        }`}
-                        disabled={currentPageIndex === 0}
-                    >
-                        <ArrowLeft className="mr-2" size={16} />
-                        Previous
-                    </button>
-                    
-                    <button
-                        onClick={goToNextPage}
-                        className={`flex items-center px-4 py-2 rounded-lg text-sm ${
-                            currentPageIndex < activePages.length - 1 
-                                ? 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600' 
-                                : 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-800'
-                        }`}
-                        disabled={currentPageIndex === activePages.length - 1}
-                    >
-                        Next
-                        <ArrowRight className="ml-2" size={16} />
-                    </button>
-                </div>
-                <div className="text-center text-xs text-gray-500 dark:text-gray-400">
-                    Use arrow keys to navigate • Press ESC to exit fullscreen
-                </div>
+
+            {/* Footer Navigation */}
+             <div className="flex items-center justify-between p-4 border-t ${isDarkMode ? 'border-neutral-700' : 'border-neutral-300'} flex-shrink-0">
+                <button 
+                    onClick={() => navigateToPage(currentPageIndex - 1)} 
+                    disabled={currentPageIndex === 0}
+                    className="px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 flex items-center bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 disabled:hover:bg-neutral-200 dark:disabled:hover:bg-neutral-700"
+                >
+                    <ArrowLeft size={16} className="mr-1" />
+                    Prev
+                </button>
+                <span className="text-sm">Use Arrow keys or Space to navigate</span>
+                <button 
+                    onClick={() => navigateToPage(currentPageIndex + 1)} 
+                    disabled={currentPageIndex === activePages.length - 1}
+                     className="px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50 flex items-center bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 disabled:hover:bg-neutral-200 dark:disabled:hover:bg-neutral-700"
+                >
+                    Next
+                    <ArrowRight size={16} className="ml-1" />
+                </button>
             </div>
         </div>
     );
@@ -1117,7 +1079,21 @@ const PresentationManagePage: React.FC = () => {
             // Update local state optimistically *before* navigating
             // The start endpoint doesn't return the full presentation, so we patch it
             setPresentation(prev => prev ? { ...prev, state: 'active' } : null);
-            navigate(`/presenter/${presentationId}/live/${sessionId}`);
+            // navigate(`/presenter/${presentationId}/live/${sessionId}`); // <-- REMOVE NAVIGATION
+            
+            // ---> Automatically open fullscreen presenter view <--- 
+            const activePages = presentation.pages.filter(p => p.status === 'active');
+            if (activePages.length > 0) {
+                const firstActiveIndex = presentation.pages.findIndex(p => p.status === 'active');
+                setFullscreenPageIndex(firstActiveIndex); // Start at first active page
+                 setIsFullscreenMode(true);
+             } else {
+                 // If no active pages, maybe show a message? 
+                 // For now, just update state to active.
+                 console.warn("Presentation started, but no active pages found.");
+             }
+            // ------------------------------------------------------
+
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to start presentation');
         } finally {

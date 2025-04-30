@@ -17,8 +17,9 @@ import {
   OpenTextSummary,
   QnASummary,
 } from '@presentx/shared';
-import { FindOneAndUpdateOptions } from '@datastax/astra-db-ts';
+import { GenericFindOneAndUpdateOptions } from '@datastax/astra-db-ts';
 import { broadcastNewQuestion, broadcastSummaryUpdate } from '../utils/socket';
+import { updateAndBroadcastSummary } from './presentation.service';
 
 const MAX_RESPONSES_PER_BATCH = 990; // Keep slightly below 1000 for safety
 
@@ -183,7 +184,7 @@ export async function addResponse(
   };
 
   // 4. Add Response to Batch (using findOneAndUpdate for atomicity within the batch doc)
-  const updateBatchOptions: FindOneAndUpdateOptions = {
+  const updateBatchOptions: GenericFindOneAndUpdateOptions = {
       returnDocument: 'after' // Return the updated batch doc
   };
   const updatedBatch = await responsesCollection.findOneAndUpdate(
@@ -205,10 +206,11 @@ export async function addResponse(
   }
 
   // 5. Calculate New Summary
-  const newSummary = calculateNewSummary(currentPage, newResponse.response_data, currentPage.audience_summary);
+  // const newSummary = calculateNewSummary(currentPage, newResponse.response_data, currentPage.audience_summary);
 
   // 6. Update Presentation Summary (Atomically)
   // Use $set with arrayFilters to update the specific page's summary and count
+  /* // REMOVED
   const newTotalResponseCount = currentPage.audience_response_count + 1;
   const presentationUpdateResult = await presentationsCollection.updateOne(
     {
@@ -231,9 +233,21 @@ export async function addResponse(
       // Potentially revert the batch update or log for manual reconciliation
       throw new Error('Failed to update presentation summary.');
   }
+  */
 
   // 7. Broadcast Updates via WebSocket
-  broadcastSummaryUpdate(presentationId, pageId, newSummary, newTotalResponseCount);
+  // broadcastSummaryUpdate(presentationId, pageId, newSummary, newTotalResponseCount);
+
+  // ---> NEW: Trigger background summary update and broadcast <---
+  // We don't await this, let it run in the background
+  if (presentation._id) {
+      updateAndBroadcastSummary(presentation._id.toString(), pageId).catch(err => { 
+          console.error(`[addResponse] Background summary update failed for pId ${presentation._id}, pageId ${pageId}:`, err);
+      });
+  } else {
+      console.error(`[addResponse] Cannot trigger summary update because presentation._id is missing for pId ${presentationId}`);
+  }
+  // --------------------------------------------------------------
 
   // Handle specific page type broadcasts (e.g., new Q&A question)
   if (currentPage.page_type === 'q&a') {

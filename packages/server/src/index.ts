@@ -42,7 +42,8 @@ async function startServer() {
       pingTimeout: 60000, // Increase ping timeout just in case
       cors: {
         origin: config.clientUrl,
-        methods: ['GET', 'POST'],
+        methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
+        credentials: true
       },
     });
     setupWebSocket(io);

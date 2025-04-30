@@ -3,6 +3,18 @@ import { Socket } from 'socket.io-client';
 import { getSocket, connectSocket, disconnectSocket, joinPresentationRoom, leavePresentationRoom, SubmitResponsePayload } from '@/lib/socket';
 import { PageChangeEvent, SummaryUpdateEvent, AudienceCountUpdateEvent, NewQuestionEvent, Page, AudienceSummary, Presentation } from '@presentx/shared';
 
+// Need to define the event interfaces used by the store
+// These should ideally match the definitions in server/src/utils/socket.ts
+interface ServerToClientListeners {
+  page_change: (payload: PageChangeEvent) => void;
+  summary_update: (payload: SummaryUpdateEvent) => void;
+  audience_count_update: (payload: AudienceCountUpdateEvent) => void;
+  new_question: (payload: NewQuestionEvent) => void;
+  joined_presentation: (payload: { audienceCount: number }) => void; // <-- Added definition
+  error: (payload: { message: string }) => void;
+  // Add other server-to-client events the store needs to listen to
+}
+
 // Interface for the store's state
 interface PresentationState {
   presentationId: string | null;
@@ -152,6 +164,13 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       set({ audienceCount: payload.count });
     };
 
+    // ---> Add Listener for Join Confirmation <---
+    const handleJoinedPresentation = (payload: { audienceCount: number }) => {
+        console.log('Store: *** Received joined_presentation event! ***', payload);
+        set({ isJoining: false, audienceCount: payload.audienceCount, error: null });
+    };
+    // -------------------------------------------
+
     const handleNewQuestion = (payload: NewQuestionEvent) => {
       console.log('Store: New question event:', payload);
       set(state => ({ questions: [...state.questions, payload] }));
@@ -171,6 +190,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     socket.on('audience_count_update', handleAudienceUpdate);
     socket.on('new_question', handleNewQuestion);
     socket.on('error', handleErrorEvent);
+    socket.on('joined_presentation', handleJoinedPresentation); // <-- Register listener
 
     set({ isSocketInitialized: true });
     
@@ -213,22 +233,16 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
 
     if (!socket.connected) {
         console.log('Store: Socket not connected, attempting connection...');
-        connectSocket();
-        // Join will be attempted via the 'connect' handler
+        // connectSocket(); // <-- Remove this call
+        // Relying on autoConnect: true now. If not connected, an error should occur or connect handler will manage.
     } else {
         console.log('Store: Socket already connected, emitting join_presentation...');
         try {
             const success = await joinPresentationRoom(id);
             if (success) {
-                console.log('Store: Successfully joined room:', id);
-                set(state => ({
-                    isJoining: false,
-                    error: null,
-                    currentPageId: state.currentPageId || initialPageId,
-                    currentPage: state.currentPage || initialPage
-                }));
+                console.log('Store: Successfully emitted join event for room:', id);
             } else {
-                console.error('Store: Failed to join room:', id);
+                console.error('Store: Failed to join room (socket lib returned false):', id);
                 set({ isJoining: false, error: 'Failed to join presentation. Please try again.', presentationId: null });
             }
         } catch (err) {

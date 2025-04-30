@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '@/store/themeStore';
 import Header from '@/components/Header';
-import { Plus, Calendar, Clock } from 'lucide-react';
+import { Plus, Calendar, Clock, Trash2 } from 'lucide-react';
 
 interface Presentation {
   _id: string;
@@ -119,6 +119,60 @@ const PresenterPage: React.FC = () => {
     }
   };
 
+  // --- New Handler for Deleting Presentation ---
+  const handleDeletePresentation = async (presentationId: string) => {
+    if (!window.confirm('Are you sure you want to delete this presentation? This action cannot be undone and will delete all associated responses.')) {
+      return;
+    }
+
+    setError(null);
+    setIsLoading(true); // Reuse loading state for simplicity
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          navigate('/login');
+          return;
+        } else if (response.status === 404) {
+          throw new Error('Presentation not found or already deleted.');
+        }
+        
+        // Try to get more specific error
+        let errorMessage = 'Failed to delete presentation';
+        try {
+          const errorData = await response.json();
+          if (errorData && (errorData.message || errorData.error)) {
+            errorMessage = errorData.message || errorData.error;
+          }
+        } catch { /* Ignore parse error */ }
+        throw new Error(errorMessage);
+      }
+
+      // If deletion was successful (status 204)
+      setPresentations(prev => prev.filter(p => p._id !== presentationId));
+      console.log(`Successfully deleted presentation ${presentationId}`);
+      // Optionally show a success message
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete presentation');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 transition-colors duration-200">
       <Header />
@@ -202,40 +256,56 @@ const PresenterPage: React.FC = () => {
                   {presentations.map((presentation) => (
                     <div
                       key={presentation._id}
-                      onClick={() => navigate(`/presenter/${presentation._id}`)}
-                      className="group p-4 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-primary dark:hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 bg-white dark:bg-neutral-800"
+                      className="group relative p-4 rounded-lg border border-neutral-200 dark:border-neutral-700 hover:border-primary dark:hover:border-primary hover:shadow-md transition-all duration-200 bg-white dark:bg-neutral-800"
                     >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="text-lg font-medium text-neutral-900 dark:text-white group-hover:text-primary dark:group-hover:text-primary-light">
-                            {presentation.title}
-                          </h3>
-                          {presentation.description && (
-                            <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
-                              {presentation.description}
-                            </p>
-                          )}
+                      <div 
+                        onClick={() => navigate(`/presenter/${presentation._id}`)} 
+                        className="cursor-pointer"
+                        >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="text-lg font-medium text-neutral-900 dark:text-white group-hover:text-primary dark:group-hover:text-primary-light">
+                              {presentation.title}
+                            </h3>
+                            {presentation.description && (
+                              <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+                                {presentation.description}
+                              </p>
+                            )}
+                          </div>
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mr-4 ${
+                            presentation.state === 'draft'
+                              ? 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800'
+                              : presentation.state === 'active'
+                              ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-200 border border-green-200 dark:border-green-800'
+                              : 'bg-neutral-50 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-600'
+                          }`}>
+                            {presentation.state.charAt(0).toUpperCase() + presentation.state.slice(1)}
+                          </span>
                         </div>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          presentation.state === 'draft'
-                            ? 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800'
-                            : presentation.state === 'active'
-                            ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-200 border border-green-200 dark:border-green-800'
-                            : 'bg-neutral-50 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-600'
-                        }`}>
-                          {presentation.state.charAt(0).toUpperCase() + presentation.state.slice(1)}
-                        </span>
+                        <div className="mt-3 flex items-center text-sm text-neutral-500 dark:text-neutral-400 space-x-4">
+                          <span className="flex items-center">
+                            <Calendar className="w-4 h-4 mr-1.5 text-neutral-400 dark:text-neutral-500" />
+                            {new Date(presentation.created_at).toLocaleDateString()}
+                          </span>
+                          <span className="flex items-center">
+                            <Clock className="w-4 h-4 mr-1.5 text-neutral-400 dark:text-neutral-500" />
+                            {new Date(presentation.created_at).toLocaleTimeString()}
+                          </span>
+                        </div>
                       </div>
-                      <div className="mt-3 flex items-center text-sm text-neutral-500 dark:text-neutral-400 space-x-4">
-                        <span className="flex items-center">
-                          <Calendar className="w-4 h-4 mr-1.5 text-neutral-400 dark:text-neutral-500" />
-                          {new Date(presentation.created_at).toLocaleDateString()}
-                        </span>
-                        <span className="flex items-center">
-                          <Clock className="w-4 h-4 mr-1.5 text-neutral-400 dark:text-neutral-500" />
-                          {new Date(presentation.created_at).toLocaleTimeString()}
-                        </span>
-                      </div>
+                      {/* Delete Button - positioned absolutely */}
+                      <button
+                        onClick={(e) => { 
+                          e.stopPropagation();
+                          handleDeletePresentation(presentation._id);
+                        }}
+                        className="absolute top-2 right-2 p-1.5 rounded-full text-neutral-400 dark:text-neutral-500 hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity duration-150 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 dark:focus:ring-offset-neutral-800"
+                        title="Delete Presentation"
+                        aria-label="Delete Presentation"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   ))}
                 </div>
