@@ -543,7 +543,6 @@ const PresentationManagePage: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPage, setEditingPage] = useState<Page | null>(null);
     const [isFullscreenMode, setIsFullscreenMode] = useState(false);
-    const [fullscreenPageIndex, setFullscreenPageIndex] = useState(0);
     const [activatingPageId, setActivatingPageId] = useState<string | null>(null); // Track which page is being activated
 
   useEffect(() => {
@@ -676,10 +675,10 @@ const PresentationManagePage: React.FC = () => {
              }
              const updatedPresentation: Presentation = await response.json();
              setPresentation(updatedPresentation);
+             storeInitialize(updatedPresentation); // <-- Initialize store BEFORE opening fullscreen
              
              // Don't navigate, just open the fullscreen modal
              setIsFullscreenMode(true); 
-             setFullscreenPageIndex(0); // Start at the first page
              
          } catch (err: any) {
             setError(err.message || 'Failed to start presentation');
@@ -687,23 +686,6 @@ const PresentationManagePage: React.FC = () => {
              setIsLoading(false);
          }
      };
-
-  // Function to handle navigation within fullscreen mode (called by FullscreenPresentation)
-  const handleFullscreenNavigate = async (pageId: string | null) => {
-    if (!presentation) return;
-    try {
-        // Call the existing handleActivatePage function for consistency
-        await handleActivatePage(pageId); 
-        // No need to set presentation state here, handleActivatePage does it.
-        // Update activePageIndex locally based on the result from handleActivatePage
-        const updatedPages = presentation.pages; // Get potentially updated pages
-        const newIndex = updatedPages.findIndex((p: Page) => p.page_id === pageId); // Add type annotation
-        setFullscreenPageIndex(newIndex >= 0 ? newIndex : 0); // Fix state setter name
-    } catch (err: any) {
-        console.error("Failed to set current audience page:", err);
-        setError(err.message || "Failed to navigate page.");
-    }
-  };
 
   // --- New Handler for Ending Presentation ---
   const handleEndPresentation = async () => {
@@ -1172,9 +1154,9 @@ const PresentationManagePage: React.FC = () => {
                                     const activePages = presentation.pages.filter(p => p.status === 'active');
                                     if (activePages.length > 0) {
                                          // Find the index of the current audience page among active pages
-                                        const currentActiveIndex = activePages.findIndex(p => p.page_id === presentation?.current_page_id);
-                                        setFullscreenPageIndex(Math.max(0, currentActiveIndex)); // Start at current page or first if none active
-                                        setIsFullscreenMode(true);
+                                        // const currentActiveIndex = activePages.findIndex(p => p.page_id === presentation?.current_page_id);
+                                        // setFullscreenPageIndex(Math.max(0, currentActiveIndex)); // <-- REMOVE state update
+                                        setIsFullscreenMode(true); // Just open the modal, store handles current page
                                     } else {
                                         alert("No active pages to present."); // Or show a more user-friendly message
                                     }

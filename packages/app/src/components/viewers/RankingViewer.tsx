@@ -67,14 +67,7 @@ const RankingViewer: React.FC<RankingViewerProps> = ({ page }) => {
         background: isDragging ? '#e2e8f0' : '#f8fafc', // Tailwind bg-slate-200 / bg-slate-50
         color: '#1e293b', // Tailwind text-slate-800
         border: '1px solid #cbd5e1', // Tailwind border-slate-300
-        // Dark mode styles
-        ...{
-          '@media (prefers-color-scheme: dark)': {
-            background: isDragging ? '#475569' : '#334155', // Tailwind dark:bg-slate-600 / dark:bg-slate-700
-            color: '#f1f5f9', // Tailwind dark:text-slate-100
-            border: '1px solid #475569', // Tailwind dark:border-slate-600
-          }
-        },
+        // Dark mode styles are now applied conditionally inline below
         // Combine styles
         ...draggableStyle,
     });
@@ -85,12 +78,6 @@ const RankingViewer: React.FC<RankingViewerProps> = ({ page }) => {
         borderRadius: '8px',
         border: '1px dashed #94a3b8', // Tailwind border-slate-400
         // Dark mode styles
-        ...{
-          '@media (prefers-color-scheme: dark)': {
-            background: isDraggingOver ? '#1e293b' : '#1a202c', // Tailwind dark:bg-slate-800 / dark:bg-gray-900 (adjust as needed)
-            border: '1px dashed #64748b', // Tailwind dark:border-slate-500
-          }
-        },
     });
 
     return (
@@ -118,28 +105,27 @@ const RankingViewer: React.FC<RankingViewerProps> = ({ page }) => {
                                     {...provided.droppableProps}
                                     ref={provided.innerRef}
                                     style={getListStyle(snapshot.isDraggingOver)}
-                                    className="dark:bg-neutral-700 border-neutral-300 dark:border-neutral-600" // Add base dark mode styles here
+                                    className="dark:bg-neutral-700 border-neutral-300 dark:border-neutral-600"
                                 >
                                     {rankedItems.map((item, index) => (
-                                        <Draggable key={item} draggableId={item} index={index}>
+                                        <Draggable key={`item-${index}`} draggableId={`item-${index}`} index={index}>
                                             {(provided: DraggableProvided, snapshot: DraggableStateSnapshot) => (
                                                 <div
                                                     ref={provided.innerRef}
                                                     {...provided.draggableProps}
                                                     {...provided.dragHandleProps}
-                                                     style={{
+                                                    style={{
                                                         ...getItemStyle(
                                                           snapshot.isDragging,
                                                           provided.draggableProps.style
                                                         ),
-                                                        // Explicitly apply dark mode styles inline for now
-                                                         ...(document.documentElement.classList.contains('dark') && {
+                                                        ...(document.documentElement.classList.contains('dark') && {
                                                             background: snapshot.isDragging ? '#475569' : '#334155',
                                                             color: '#f1f5f9',
                                                             border: '1px solid #475569'
                                                         })
                                                     }}
-                                                    className="flex items-center justify-between" // Added flex for rank number
+                                                    className="flex items-center justify-between"
                                                 >
                                                     <span className="font-medium">{index + 1}.</span> {/* Rank Number */}
                                                     <span className="ml-4 flex-grow">{item}</span> {/* Item Text */}

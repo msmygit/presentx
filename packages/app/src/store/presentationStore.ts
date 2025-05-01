@@ -189,9 +189,49 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
 
     const handleSummaryUpdate = (payload: SummaryUpdateEvent) => {
       console.log('Store: Summary update event:', payload);
-      if (payload.page_id === get().currentPageId) {
-        set({ currentSummary: payload.new_summary });
+      const { presentation_id, page_id, new_summary, new_response_count } = payload;
+
+      // Ignore updates for irrelevant presentations
+      if (presentation_id !== get().presentationId) {
+        return;
       }
+
+      set((state) => {
+        if (!state.presentation || !state.presentation.pages) {
+          return {}; // Should not happen if joined, but safe check
+        }
+
+        // Find the page and update it immutably
+        const pageIndex = state.presentation.pages.findIndex(p => p.page_id === page_id);
+        let updatedPresentation = state.presentation;
+
+        if (pageIndex !== -1) {
+          // Create a new pages array
+          const updatedPages = [...state.presentation.pages];
+          // Create an updated page object
+          const updatedPage = {
+            ...updatedPages[pageIndex],
+            audience_summary: new_summary,
+            audience_response_count: new_response_count
+          };
+          // Put the updated page into the new array
+          updatedPages[pageIndex] = updatedPage;
+          // Create a new presentation object with the updated pages
+          updatedPresentation = { ...state.presentation, pages: updatedPages };
+        } else {
+          console.warn(`Store: Page ${page_id} not found for summary update.`);
+          // Decide if you want to handle this - maybe refetch?
+        }
+
+        // Determine the new current summary
+        const newCurrentSummary = page_id === state.currentPageId ? new_summary : state.currentSummary;
+
+        // Return the complete updated state
+        return {
+          presentation: updatedPresentation,
+          currentSummary: newCurrentSummary
+        };
+      });
     };
 
     const handleAudienceUpdate = (payload: AudienceCountUpdateEvent) => {
