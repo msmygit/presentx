@@ -388,14 +388,22 @@ const FullscreenPresentation: React.FC<FullscreenPresentationProps> = ({
     // Get state directly from Zustand store
     const presentationId = usePresentationStore(state => state.presentationId);
     const presentation = usePresentationStore(state => state.presentation);
-    const currentPage = usePresentationStore(state => state.currentPage);
+    const currentPageId = usePresentationStore(state => state.currentPageId); // <-- Get ID instead
     const currentSummary = usePresentationStore(state => state.currentSummary);
     const audienceCount = usePresentationStore(state => state.audienceCount);
     const setCurrentAudiencePageAction = usePresentationStore(state => state.setCurrentAudiencePage); // <-- Get action from store
     
+    // ---> Derive currentPage locally <--- 
+    const currentPage = React.useMemo(() => {
+        return presentation?.pages?.find(p => p.page_id === currentPageId) || null;
+    }, [presentation, currentPageId]);
+    
     // Derive active pages from the full presentation object in store
     const activePages = presentation?.pages?.filter(p => p.status === 'active') || [];
-    const currentPageIndex = activePages.findIndex(p => p.page_id === currentPage?.page_id);
+    // ---> Update currentPageIndex derivation to use locally derived currentPage <---
+    const currentPageIndex = React.useMemo(() => {
+        return activePages.findIndex(p => p.page_id === currentPage?.page_id);
+    }, [activePages, currentPage]);
 
     // Navigation Logic (using derived activePages and index)
     const handlePrev = () => {

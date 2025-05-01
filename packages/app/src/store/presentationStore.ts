@@ -100,24 +100,37 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     console.log('[Store initializeFromJoinData] Initializing with data:', presentationData?._id);
     const initialPageId = presentationData?.current_page_id || presentationData?.pages?.[0]?.page_id || null;
     const initialPage = presentationData?.pages.find(p => p.page_id === initialPageId) || null;
+    const initialSummary = initialPage?.audience_summary || null;
+    
     set({
       presentationId: presentationData?._id ?? null, // Handle potential null presentationData
       presentation: presentationData,
       currentPageId: initialPageId,
       currentPage: initialPage,
+      currentSummary: initialSummary,
       isJoining: false,
       error: null,
     });
     // Connect socket AFTER setting presentation data
     get().initializeSocket();
     if (presentationData?._id) { // Only connect/join if we have an ID
-        if (!getSocket().connected) {
-            connectSocket(); 
+        // Remove explicit connection call - rely on autoConnect or handleConnect
+        // if (!getSocket().connected) {
+        //     connectSocket(); 
+        // }
+        
+        // Attempt to join the room directly if already connected, 
+        // otherwise handleConnect will join upon connection.
+        if (getSocket().connected) {
+            joinPresentationRoom(presentationData._id).catch(err => {
+                console.error('[Store initializeFromJoinData] Error auto-joining room:', err);
+                set({ error: 'Failed to sync with presentation.' });
+            });
+        } else {
+            console.log('[Store initializeFromJoinData] Socket not connected yet, will join via connect handler.');
+            // Ensure connect handler knows which room to join if needed?
+            // The current connect handler already reads `get().presentationId`, which is set above.
         }
-        joinPresentationRoom(presentationData._id).catch(err => {
-            console.error('[Store initializeFromJoinData] Error auto-joining room:', err);
-            set({ error: 'Failed to sync with presentation.' });
-        });
     }
   },
 
