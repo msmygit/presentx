@@ -273,7 +273,7 @@ const PresenterPage: React.FC = () => {
                               </p>
                             )}
                           </div>
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mr-4 ${
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mr-1 ${
                             presentation.state === 'draft'
                               ? 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800'
                               : presentation.state === 'active'
@@ -300,7 +300,7 @@ const PresenterPage: React.FC = () => {
                           e.stopPropagation();
                           handleDeletePresentation(presentation._id);
                         }}
-                        className="absolute top-2 right-2 p-1.5 rounded-full text-neutral-400 dark:text-neutral-500 hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity duration-150 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 dark:focus:ring-offset-neutral-800"
+                        className="absolute bottom-1 right-1 p-1.5 rounded-full text-neutral-400 dark:text-neutral-500 hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity duration-150 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 dark:focus:ring-offset-neutral-800"
                         title="Delete Presentation"
                         aria-label="Delete Presentation"
                       >
