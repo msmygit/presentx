@@ -1,17 +1,18 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 // Removed socket library imports, now handled by store
-import { Page, AudienceSummary, NewQuestionEvent, MultiChoiceConfig, OpenEndedConfig, ScalesConfig, RankingConfig, WordCloudConfig, Presentation } from '@presentx/shared';
+import { Page, AudienceSummary, NewQuestionEvent, MultiChoiceConfig, PollConfig, OpenEndedConfig, ScalesConfig, RankingConfig, WordCloudConfig, Presentation } from '@presentx/shared';
 import { usePresentationStore } from '@/store/presentationStore'; // Import the Zustand store
 import { getSocket, connectSocket } from '@/lib/socket'; // <-- Import socket functions
-import MultiChoiceViewer from '@/components/viewers/MultiChoiceViewer'; // Import the specific viewer
+// Use named import for MultiChoiceViewer
+import { MultiChoiceViewer } from '@/components/viewers/MultiChoiceViewer'; 
 // Import the new viewers
 import OpenEndedViewer from '@/components/viewers/OpenEndedViewer';
 import ScalesViewer from '@/components/viewers/ScalesViewer';
 import RankingViewer from '@/components/viewers/RankingViewer';
 import WordCloudViewer from '@/components/viewers/WordCloudViewer';
-import QnAViewer from '@/components/viewers/QnAViewer';
-import PresentationContent from '@/components/common/PresentationContent';
+import { PollViewer } from '@/components/viewers/PollViewer'; // Import PollViewer (assuming default export)
+// import QnaViewer from '@/components/viewers/QnaViewer'; // Assuming Q&A might be added later
 
 // --- Generic Page View (Placeholder/Fallback) ---
 const GenericPageView = ({ page }: { page: Page }) => {
@@ -41,25 +42,38 @@ const PresentationContent = React.memo(({ id, title, description, currentPage, c
             return <p className="text-center text-gray-500">Waiting for presentation content...</p>;
         }
 
+        // Define onSubmit handler for viewers that need it (like MultiChoiceViewer)
+        const handleViewerSubmit = () => {
+            console.log(`Viewer submitted for page ${currentPage.page_id}`);
+        };
+
         switch (currentPage.page_type) {
             case 'multi-choice':
-                // Type assertion needed as TS doesn't automatically narrow based on page_type string
-                return <MultiChoiceViewer page={currentPage as Page & { page_config: MultiChoiceConfig }} />;
-            // TODO: Add cases for other page types (poll, word-cloud, etc.)
-            // case 'word-cloud':
-            //     return <WordCloudViewer page={currentPage as Page & { page_config: WordCloudConfig }} />;
+                // MultiChoiceViewer expects separate props
+                return <MultiChoiceViewer 
+                           pageId={currentPage.page_id} 
+                           config={currentPage.page_config as MultiChoiceConfig} 
+                           onSubmit={handleViewerSubmit} 
+                       />;
+            case 'poll':
+                return <PollViewer 
+                           pageId={currentPage.page_id} 
+                           config={currentPage.page_config as PollConfig} 
+                           onSubmit={handleViewerSubmit} 
+                       />;
             case 'open-ended':
+                 // Revert to passing the whole page object
                  return <OpenEndedViewer page={currentPage as Page & { page_config: OpenEndedConfig }} />;
             case 'scales':
+                 // Revert to passing the whole page object
                  return <ScalesViewer page={currentPage as Page & { page_config: ScalesConfig }} />;
             case 'ranking':
+                 // Revert to passing the whole page object
                  return <RankingViewer page={currentPage as Page & { page_config: RankingConfig }} />;
              case 'word-cloud':
+                 // Revert to passing the whole page object
                  return <WordCloudViewer page={currentPage as Page & { page_config: WordCloudConfig }} />;
-            case 'q&a':
-                 return <QnAViewer page={currentPage as Page & { page_config: QnAConfig }} />;
             default:
-                // Fallback for unknown or unhandled types (like 'poll' currently)
                 console.warn(`Rendering GenericPageView for unhandled page type: ${currentPage.page_type}`);
                 return <GenericPageView page={currentPage} />;
         }
@@ -116,7 +130,6 @@ function PresentationPage() {
   const initialPresentationData = location.state?.presentation as Presentation | undefined;
   const hasProcessedInitialData = useRef(false);
   const isMounted = useRef(false);
-  const [hasSubmitted, setHasSubmitted] = useState(false);
 
   // Use selectors for reactive state
   const { 
@@ -198,96 +211,8 @@ function PresentationPage() {
     };
   }, [routeId, navigate, presentationId, initialPresentationData, initializeSocketAction, initializeJoinDataAction, joinAction, leaveAction]);
 
-  useEffect(() => {
-    // Reset submission state when page changes
-    setHasSubmitted(false);
-  }, [currentPage?.page_id]);
-
   // --- Render Logic ---
   const isLoading = isJoining || (isConnected && !currentPage && !error);
-
-  const renderPageView = () => {
-    if (!currentPage) {
-      return <div className="text-center text-gray-500 dark:text-gray-400">Waiting for the presenter...</div>;
-    }
-
-    // Show thank you message if submitted for the current page
-    if (hasSubmitted) {
-        return (
-            <div className="bg-green-100 dark:bg-green-900 border border-green-400 dark:border-green-700 text-green-700 dark:text-green-200 px-4 py-3 rounded relative text-center" role="alert">
-                <strong className="font-bold">Thank you for your response!</strong>
-                <span className="block sm:inline"> Waiting for the next page.</span>
-            </div>
-        );
-    }
-
-    switch (currentPage.page_type) {
-      case 'multi-choice':
-      case 'poll':
-        return <MultiChoiceViewer config={currentPage.page_config} pageId={currentPage.page_id} setSubmitted={setHasSubmitted} />;
-      case 'open-ended':
-         return <OpenEndedViewer config={currentPage.page_config} pageId={currentPage.page_id} setSubmitted={setHasSubmitted} />;
-      case 'scales':
-         return <ScalesViewer config={currentPage.page_config} pageId={currentPage.page_id} setSubmitted={setHasSubmitted} />;
-      case 'ranking':
-         return <RankingViewer config={currentPage.page_config} pageId={currentPage.page_id} setSubmitted={setHasSubmitted} />;
-      case 'word-cloud':
-         return <WordCloudViewer config={currentPage.page_config} pageId={currentPage.page_id} setSubmitted={setHasSubmitted} />;
-      case 'q&a':
-         return <QnAViewer config={currentPage.page_config} pageId={currentPage.page_id} setSubmitted={setHasSubmitted} />;
-      default:
-        return <div className="text-center text-red-500">Unsupported page type: {currentPage.page_type}</div>;
-    }
-  };
-
-  const handleRetryConnection = () => {
-      const socket = getSocket();
-      if (!socket.connected) {
-          console.log('Retrying connection...');
-          connectSocket(); // Attempt to reconnect
-      } else {
-         // If connected but still error, maybe re-initiate join?
-         if(presentationId) {
-             console.log('Socket connected, but retrying join process...');
-             // We need the presentation data here, which might have been lost
-             // This scenario needs careful handling - perhaps redirect to join page?
-             // For now, just log and clear error.
-              usePresentationStore.setState({ error: null }); 
-             // joinAction(presentationId); // Avoid calling if presentation data is missing
-         }
-      }
-  };
-
-  if (isJoining) {
-    return (
-      <div className="flex justify-center items-center h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-        <Loader2 className="h-8 w-8 animate-spin mr-2" />
-        Connecting to presentation...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col justify-center items-center h-screen bg-red-50 dark:bg-red-900 text-red-700 dark:text-red-200 p-4">
-        <h2 className="text-xl font-semibold mb-4">Connection Error</h2>
-        <p className="mb-4 text-center">{error}</p>
-        <Button onClick={handleRetryConnection} variant="destructive">
-          Retry Connection
-        </Button>
-      </div>
-    );
-  }
-  
-  if (!presentation) {
-      // This state should ideally be handled by redirecting to the join page
-      // or showing a more specific message if accessed directly.
-       return (
-           <div className="flex justify-center items-center h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-               Presentation not found or not joined. Please use an access code.
-           </div>
-       );
-  }
 
   return (
     <div className="container mx-auto p-4 min-h-screen bg-neutral-50 dark:bg-neutral-900 transition-colors duration-200">
@@ -366,9 +291,7 @@ function PresentationPage() {
                 currentSummary={currentSummary} 
                 audienceCount={audienceCount} 
                 questions={questions} 
-            >
-                {renderPageView()}
-            </PresentationContent>
+            />
          )}
          
          {/* Placeholder while loading initial page */} 

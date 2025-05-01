@@ -1,34 +1,36 @@
 import React, { useState } from 'react';
-import { MultiChoiceConfig } from '@presentx/shared';
+import { PollConfig } from '@presentx/shared';
 import { usePresentationStore } from '@/store/presentationStore';
-// No UI component imports needed if styling existing elements
 
-interface MultiChoiceViewerProps {
+// Define props similar to MultiChoiceViewer
+interface PollViewerProps {
   pageId: string;
-  config: MultiChoiceConfig;
-  onSubmit: () => void;
+  config: PollConfig;
+  onSubmit: () => void; // Callback after successful submission
 }
 
-export const MultiChoiceViewer: React.FC<MultiChoiceViewerProps> = ({ pageId, config, onSubmit }) => {
+// Create or update PollViewer component
+export const PollViewer: React.FC<PollViewerProps> = ({ pageId, config, onSubmit }) => {
   const { submitResponse, isSubmittingResponse } = usePresentationStore();
   const [selectedValue, setSelectedValue] = useState<string | null>(null);
-  const [submittedValue, setSubmittedValue] = useState<string | null>(null); // Track submission success
+  const [submittedValue, setSubmittedValue] = useState<string | null>(null); // Track submission
 
   const handleSelect = (option: string) => {
-    if (submittedValue) return; // Don't allow changes after submission
+    if (submittedValue) return; // No changes after submit
     setSelectedValue(option);
   };
 
   const handleSubmit = async () => {
     if (!selectedValue || submittedValue) return;
+    // Polls likely submit the same way as multi-choice (sending the chosen option)
     const success = await submitResponse(pageId, { choice: selectedValue });
     if (success) {
-      setSubmittedValue(selectedValue); // Mark as submitted on success
+      setSubmittedValue(selectedValue);
       onSubmit();
     }
   };
 
-  // Helper to get button styling based on state
+  // Styling helpers copied/adapted from MultiChoiceViewer
   const getOptionButtonClass = (option: string): string => {
     const baseClasses = "block w-full text-left px-4 py-3 rounded border transition-colors duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-800";
     const normalClasses = "bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600";
@@ -37,7 +39,7 @@ export const MultiChoiceViewer: React.FC<MultiChoiceViewerProps> = ({ pageId, co
     const submittedSelectedClasses = "bg-green-100 dark:bg-green-900 border-green-500 dark:border-green-400 ring-2 ring-green-500 dark:ring-green-400 text-green-800 dark:text-green-100 cursor-not-allowed";
 
     if (submittedValue) {
-        return `${baseClasses} ${option === submittedValue ? submittedSelectedClasses : submittedClasses}`;
+      return `${baseClasses} ${option === submittedValue ? submittedSelectedClasses : submittedClasses}`;
     }
     if (option === selectedValue) {
       return `${baseClasses} ${selectedClasses}`;
@@ -65,7 +67,6 @@ export const MultiChoiceViewer: React.FC<MultiChoiceViewerProps> = ({ pageId, co
           <button
             key={index}
             onClick={() => handleSelect(option)}
-            // Disable buttons after submission
             disabled={isSubmittingResponse || !!submittedValue} 
             className={getOptionButtonClass(option)}
           >
@@ -80,8 +81,12 @@ export const MultiChoiceViewer: React.FC<MultiChoiceViewerProps> = ({ pageId, co
         disabled={!selectedValue || isSubmittingResponse || !!submittedValue}
         className={getSubmitButtonClass()}
       >
-        {submittedValue ? 'Submitted' : isSubmittingResponse ? 'Submitting...' : 'Submit Answer'}
+        {submittedValue ? 'Submitted' : isSubmittingResponse ? 'Submitting...' : 'Submit Poll'}
       </button>
     </div>
   );
-}; 
+};
+
+// If the file didn't exist, it will be created.
+// If it existed, it will be overwritten with this themed version.
+export default PollViewer; // Exporting default assuming that's consistent with other viewers 

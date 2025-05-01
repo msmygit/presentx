@@ -26,11 +26,11 @@ const commonInputClass = "mt-1 block w-full border-gray-300 dark:border-gray-600
 const commonLabelClass = "block text-sm text-gray-700 dark:text-gray-300";
 
 const MultiChoiceConfigInputs: React.FC<ConfigInputProps<MultiChoiceConfig>> = ({ config, onChange }) => {
-    const handleOptionChange = (index: number, value: string) => {
+        const handleOptionChange = (index: number, value: string) => {
         const newOptions = [...(config.options || [])];
-        newOptions[index] = value;
+            newOptions[index] = value;
         onChange({ options: newOptions });
-    };
+        };
 
     const addOption = () => onChange({ options: [...(config.options || []), ''] });
     const removeOption = (index: number) => onChange({ options: (config.options || []).filter((_, i) => i !== index) });
@@ -90,9 +90,9 @@ const PollConfigInputs: React.FC<ConfigInputProps<PollConfig>> = ({ config, onCh
     const addOption = () => onChange({ options: [...(config.options || []), ''] });
      const removeOption = (index: number) => onChange({ options: (config.options || []).filter((_, i) => i !== index) });
 
-    return (
+        return (
         <>
-            <div>
+                <div>
                 <label className={commonLabelClass}>Question:</label>
                 <input
                     type="text"
@@ -101,8 +101,8 @@ const PollConfigInputs: React.FC<ConfigInputProps<PollConfig>> = ({ config, onCh
                     required
                     className={commonInputClass}
                 />
-            </div>
-            <div>
+                </div>
+                <div>
                 <label className={commonLabelClass}>Options:</label>
                 {(config.options || []).map((opt, i) => (
                      <div key={i} className="flex items-center mb-1 space-x-2">
@@ -118,9 +118,9 @@ const PollConfigInputs: React.FC<ConfigInputProps<PollConfig>> = ({ config, onCh
                             <button type="button" onClick={() => removeOption(i)} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-500 text-xs">Remove</button>
                          )}
                     </div>
-                ))}
+                    ))}
                 <button type="button" onClick={addOption} className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-1">+ Add Option</button>
-            </div>
+                </div>
         </>
     );
 };
@@ -546,7 +546,7 @@ const FormattedPageConfig = ({ config, type }: { config: any, type: PageType }) 
              </div>
          );
     }
-
+    
     // Fallback for other types or malformed config
     return (
         <pre className="text-xs bg-gray-50 dark:bg-gray-800 dark:text-gray-300 p-1 rounded border border-gray-200 dark:border-gray-700 overflow-x-auto">
@@ -809,7 +809,7 @@ const EditPageModal: React.FC<EditPageModalProps> = ({ isOpen, onClose, page, on
     const [title, setTitle] = useState('');
     const [pageConfig, setPageConfig] = useState<any>(null); // Holds config from PageConfigForm
     const [formType, setFormType] = useState<PageType | ''>('');
-    
+
     // State for form submission from PageConfigForm
     const configFormRef = useRef<{ submit: () => void }>(null); // To trigger submit externally if needed
 
@@ -876,8 +876,8 @@ const EditPageModal: React.FC<EditPageModalProps> = ({ isOpen, onClose, page, on
                 <div className="p-6 space-y-4">
                     <div>
                         <label htmlFor="pageTitle" className={`block text-sm font-medium ${isDarkMode ? 'dark:text-gray-300' : 'text-gray-700'}`}>Page Title:</label>
-                        <input
-                            type="text"
+                        <input 
+                            type="text" 
                             id="pageTitle"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
@@ -889,29 +889,29 @@ const EditPageModal: React.FC<EditPageModalProps> = ({ isOpen, onClose, page, on
                             placeholder="Enter page title"
                         />
                     </div>
-                    
+
                     {/* Conditionally render PageConfigForm */}
                     {formType && (
-                        <PageConfigForm 
+                         <PageConfigForm 
                             type={formType} 
                             onSubmit={handleInternalConfigSubmit} 
                             initialConfig={pageConfig} // Pass current config as initial
-                        />
+                         />
                     )}
                     
-                </div>
+                    </div>
                 <div className={`flex justify-end items-center p-4 border-t ${isDarkMode ? 'dark:border-gray-700' : 'border-gray-200'} space-x-2`}>
-                    <button 
-                        onClick={onClose}
-                        disabled={isLoading}
+                        <button 
+                            onClick={onClose}
+                            disabled={isLoading}
                         className={`px-4 py-2 rounded ${
                             isDarkMode 
                             ? 'bg-gray-600 hover:bg-gray-500 text-white' 
                             : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
                         } disabled:opacity-50`}
-                    >
-                        Cancel
-                    </button>
+                        >
+                            Cancel
+                        </button>
                     <button 
                         onClick={handleSaveChanges} // Use the correct handler
                         disabled={isLoading}
@@ -920,8 +920,8 @@ const EditPageModal: React.FC<EditPageModalProps> = ({ isOpen, onClose, page, on
                         } disabled:opacity-50`}
                     >
                         {isLoading ? 'Saving...' : 'Save Changes'}
-                    </button>
-                </div>
+                        </button>
+                 </div>
             </div>
         </div>
     );
@@ -930,155 +930,155 @@ const EditPageModal: React.FC<EditPageModalProps> = ({ isOpen, onClose, page, on
 // --- Main Component ---
 
 const PresentationManagePage: React.FC = () => {
-    const { id: presentationId } = useParams<{ id: string }>();
-    const navigate = useNavigate();
-    const { isDarkMode } = useTheme();
-    const [presentation, setPresentation] = useState<Presentation | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isAddingPage, setIsAddingPage] = useState(false); // State to show/hide add page form
+  const { id: presentationId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { isDarkMode } = useTheme();
+  const [presentation, setPresentation] = useState<Presentation | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAddingPage, setIsAddingPage] = useState(false); // State to show/hide add page form
     const [newPageType, setNewPageType] = useState<PageType | ''>( 'multi-choice'); // <-- Fix: Use PageType union, initialize correctly
-    const [newPageTitle, setNewPageTitle] = useState('');
-    const [isUpdatingState, setIsUpdatingState] = useState(false); // Add state for loading indicator
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editingPage, setEditingPage] = useState<Page | null>(null);
+  const [newPageTitle, setNewPageTitle] = useState('');
+  const [isUpdatingState, setIsUpdatingState] = useState(false); // Add state for loading indicator
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingPage, setEditingPage] = useState<Page | null>(null);
     const [isFullscreenMode, setIsFullscreenMode] = useState(false);
     const [fullscreenPageIndex, setFullscreenPageIndex] = useState(0);
     const [activatingPageId, setActivatingPageId] = useState<string | null>(null); // Track which page is being activated
 
-    useEffect(() => {
-        document.body.className = isDarkMode ? 'dark bg-gray-900' : 'bg-gray-50';
-    }, [isDarkMode]);
+  useEffect(() => {
+    document.body.className = isDarkMode ? 'dark bg-gray-900' : 'bg-gray-50';
+  }, [isDarkMode]);
 
-    useEffect(() => {
-        if (presentationId) {
-            fetchPresentation();
-        } else {
-            setError('No Presentation ID provided.');
-            setIsLoading(false);
-        }
-    }, [presentationId]);
+  useEffect(() => {
+    if (presentationId) {
+        fetchPresentation();
+    } else {
+        setError('No Presentation ID provided.');
+        setIsLoading(false);
+    }
+  }, [presentationId]);
 
-    const fetchPresentation = async () => {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                navigate('/login');
-                return;
-            }
-
-            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}`, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
-            });
-
-            if (!response.ok) {
-                if (response.status === 401 || response.status === 403) {
-                    navigate('/login'); // Redirect if unauthorized
-                    return;
-                } else if (response.status === 404) {
-                    throw new Error('Presentation not found.');
-                }
-                throw new Error('Failed to fetch presentation details');
-            }
-
-            const data: Presentation = await response.json();
-            // Ensure pages are sorted on fetch
-            if (data.pages) {
-                data.pages.sort((a, b) => a.page_order - b.page_order);
-            }
-            setPresentation(data);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to fetch presentation');
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const handleAddPage = async (pageConfig: any) => {
-        if (!presentationId || !presentation) return;
-
-        setError(null);
-        // Basic validation
-        if (!newPageType) {
-            setError('Please select a page type.');
+  const fetchPresentation = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            navigate('/login');
             return;
         }
 
-        const newPageData: Omit<Page, 'page_id' | 'audience_response_count' | 'audience_summary'> = {
-            page_order: presentation.pages.length, // Add to the end
-            page_type: newPageType as any, // Cast needed if PageType enum isn't used directly
-            status: 'active', // Explicitly set default status
-            page_title: newPageTitle || '',
-            page_config: pageConfig,
-        };
+      const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
 
-        try {
-            const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/pages`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify(newPageData),
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: 'Failed to add page' }));
-                throw new Error(errorData.message || 'Failed to add page');
-            }
-
-            const updatedPresentation: Presentation = await response.json();
-             // Ensure pages are sorted after update
-            if (updatedPresentation.pages) {
-                updatedPresentation.pages.sort((a, b) => a.page_order - b.page_order);
-            }
-            setPresentation(updatedPresentation);
-            // Reset form
-            setIsAddingPage(false);
-            setNewPageTitle('');
-            setNewPageType('multi-choice');
-
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to add page');
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+            navigate('/login'); // Redirect if unauthorized
+            return;
+        } else if (response.status === 404) {
+            throw new Error('Presentation not found.');
         }
-    };
+        throw new Error('Failed to fetch presentation details');
+      }
 
-    const handleStartPresentation = async () => {
-        if (!presentation || isUpdatingState) return; // Prevent double clicks
-        
-        setError(null);
-        setIsUpdatingState(true); // Set loading state
+      const data: Presentation = await response.json();
+      // Ensure pages are sorted on fetch
+      if (data.pages) {
+          data.pages.sort((a, b) => a.page_order - b.page_order);
+      }
+      setPresentation(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch presentation');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAddPage = async (pageConfig: any) => {
+      if (!presentationId || !presentation) return;
+
+      setError(null);
+      // Basic validation
+      if (!newPageType) {
+          setError('Please select a page type.');
+          return;
+      }
+
+      const newPageData: Omit<Page, 'page_id' | 'audience_response_count' | 'audience_summary'> = {
+          page_order: presentation.pages.length, // Add to the end
+          page_type: newPageType as any, // Cast needed if PageType enum isn't used directly
+            status: 'active', // Explicitly set default status
+          page_title: newPageTitle || '',
+          page_config: pageConfig,
+      };
+
+      try {
+          const token = localStorage.getItem('token');
+          const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/pages`, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify(newPageData),
+          });
+
+          if (!response.ok) {
+              const errorData = await response.json().catch(() => ({ message: 'Failed to add page' }));
+              throw new Error(errorData.message || 'Failed to add page');
+          }
+
+          const updatedPresentation: Presentation = await response.json();
+           // Ensure pages are sorted after update
+          if (updatedPresentation.pages) {
+              updatedPresentation.pages.sort((a, b) => a.page_order - b.page_order);
+          }
+          setPresentation(updatedPresentation);
+          // Reset form
+          setIsAddingPage(false);
+          setNewPageTitle('');
+          setNewPageType('multi-choice');
+
+      } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to add page');
+      }
+  };
+
+  const handleStartPresentation = async () => {
+    if (!presentation || isUpdatingState) return; // Prevent double clicks
+    
+    setError(null);
+    setIsUpdatingState(true); // Set loading state
+    try {
+      // Start the presentation session
+      const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/start`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+      });
+
+      if (!response.ok) {
+        let errorMessage = 'Failed to start presentation'; // Default
         try {
-            // Start the presentation session
-            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/start`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                },
-            });
+          const errorData = await response.json();
+          if (errorData && (errorData.message || errorData.error)) {
+            errorMessage = errorData.message || errorData.error;
+          }
+        } catch (jsonError) {
+          console.error('Failed to parse error response JSON:', jsonError);
+        }
+        throw new Error(errorMessage); // Throw with specific or default message
+      }
 
-            if (!response.ok) {
-                let errorMessage = 'Failed to start presentation'; // Default
-                try {
-                    const errorData = await response.json();
-                    if (errorData && (errorData.message || errorData.error)) {
-                        errorMessage = errorData.message || errorData.error;
-                    }
-                } catch (jsonError) {
-                    console.error('Failed to parse error response JSON:', jsonError);
-                }
-                throw new Error(errorMessage); // Throw with specific or default message
-            }
-
-            const { sessionId } = await response.json();
-            // Update local state optimistically *before* navigating
-            // The start endpoint doesn't return the full presentation, so we patch it
-            setPresentation(prev => prev ? { ...prev, state: 'active' } : null);
+      const { sessionId } = await response.json();
+      // Update local state optimistically *before* navigating
+      // The start endpoint doesn't return the full presentation, so we patch it
+      setPresentation(prev => prev ? { ...prev, state: 'active' } : null);
             // navigate(`/presenter/${presentationId}/live/${sessionId}`); // <-- REMOVE NAVIGATION
             
             // ---> Automatically open fullscreen presenter view <--- 
@@ -1094,148 +1094,148 @@ const PresentationManagePage: React.FC = () => {
              }
             // ------------------------------------------------------
 
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to start presentation');
-        } finally {
-            setIsUpdatingState(false); // Clear loading state
-        }
-    };
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to start presentation');
+    } finally {
+      setIsUpdatingState(false); // Clear loading state
+    }
+  };
 
-    // --- New Handler for Ending Presentation ---
-    const handleEndPresentation = async () => {
-        if (!presentation || isUpdatingState) return; // Prevent double clicks
+  // --- New Handler for Ending Presentation ---
+  const handleEndPresentation = async () => {
+    if (!presentation || isUpdatingState) return; // Prevent double clicks
 
-        setError(null);
-        setIsUpdatingState(true);
-        try {
-            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/state`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                },
-                body: JSON.stringify({ state: 'completed' }),
-            });
+    setError(null);
+    setIsUpdatingState(true);
+    try {
+        const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/state`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            },
+            body: JSON.stringify({ state: 'completed' }),
+        });
 
-            if (!response.ok) {
-                let errorMessage = 'Failed to end presentation';
-                try {
-                    const errorData = await response.json();
-                    if (errorData && (errorData.message || errorData.error)) {
-                        errorMessage = errorData.message || errorData.error;
-                    }
-                } catch (jsonError) {
-                    console.error('Failed to parse error response JSON:', jsonError);
+        if (!response.ok) {
+            let errorMessage = 'Failed to end presentation';
+            try {
+                const errorData = await response.json();
+                if (errorData && (errorData.message || errorData.error)) {
+                    errorMessage = errorData.message || errorData.error;
                 }
-                throw new Error(errorMessage);
+            } catch (jsonError) {
+                console.error('Failed to parse error response JSON:', jsonError);
             }
-
-            const updatedPresentation: Presentation = await response.json();
-            setPresentation(updatedPresentation); // Update state with response from backend
-
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to end presentation');
-        } finally {
-            setIsUpdatingState(false);
+            throw new Error(errorMessage);
         }
-    };
 
-    const handlePageChange = async (newIndex: number) => {
-        // TODO: Implement handlePageChange logic properly
-        // This function is currently not used, but the previous attempt had type errors
-        // It likely needs to call the backend API PUT /api/presentations/:id/current-page
-        // and then update the local presentation state upon success.
+        const updatedPresentation: Presentation = await response.json();
+        setPresentation(updatedPresentation); // Update state with response from backend
 
-        /* PREVIOUS BROKEN CODE:
-        if (!presentation || newIndex < 0 || newIndex >= presentation.pages.length) return;
+    } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to end presentation');
+    } finally {
+        setIsUpdatingState(false);
+    }
+  };
 
-        try {
-            await fetch(`http://localhost:8080/api/presentations/${presentationId}/page`, {
-                method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ pageIndex: newIndex }),
-            });
+  const handlePageChange = async (newIndex: number) => {
+    // TODO: Implement handlePageChange logic properly
+    // This function is currently not used, but the previous attempt had type errors
+    // It likely needs to call the backend API PUT /api/presentations/:id/current-page
+    // and then update the local presentation state upon success.
 
-            setPresentation(prevPresentation => ({
-                ...prevPresentation,
-                current_page_id: presentation.pages[newIndex].page_id,
-            }));
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to change page');
-        }
-        */
-    };
+    /* PREVIOUS BROKEN CODE:
+    if (!presentation || newIndex < 0 || newIndex >= presentation.pages.length) return;
+
+    try {
+      await fetch(`http://localhost:8080/api/presentations/${presentationId}/page`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ pageIndex: newIndex }),
+      });
+
+      setPresentation(prevPresentation => ({
+        ...prevPresentation,
+        current_page_id: presentation.pages[newIndex].page_id,
+      }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to change page');
+    }
+    */
+  };
 
     // Placeholder handlers for page actions
-    const handleEditPage = (pageId: string) => {
+  const handleEditPage = (pageId: string) => {
         if (presentation) { // Only proceed if presentation data exists
-            const pageToEdit = presentation.pages.find(p => p.page_id === pageId);
-            if (pageToEdit) {
-                setEditingPage(pageToEdit);
-                setIsEditModalOpen(true);
-                setError(null); // Clear previous errors
-            } else {
-                setError('Could not find page to edit.');
-            }
-        } else {
+          const pageToEdit = presentation.pages.find(p => p.page_id === pageId);
+          if (pageToEdit) {
+              setEditingPage(pageToEdit);
+              setIsEditModalOpen(true);
+              setError(null); // Clear previous errors
+          } else {
+              setError('Could not find page to edit.');
+          }
+      } else {
             setError('Presentation data not loaded.'); // Should not happen often
-        }
-    };
+      }
+  };
 
-    const handleDeletePage = async (pageId: string) => {
+  const handleDeletePage = async (pageId: string) => {
         if (!presentation) {
             setError('Cannot delete page: Presentation data not loaded.');
-            return;
-        }
-        
-        // Confirmation dialog
-        if (!window.confirm(`Are you sure you want to delete this page? (ID: ${pageId.substring(0,6)}...)`)) {
-            return;
-        }
+          return;
+      }
+      
+      // Confirmation dialog
+      if (!window.confirm(`Are you sure you want to delete this page? (ID: ${pageId.substring(0,6)}...)`)) {
+          return;
+      }
 
-        setIsUpdatingState(true); // Use existing state for loading indicator
-        setError(null);
-        try {
-            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/pages/${pageId}`, {
-                method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                },
-            });
+      setIsUpdatingState(true); // Use existing state for loading indicator
+      setError(null);
+      try {
+          const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/pages/${pageId}`, {
+              method: 'DELETE',
+              headers: {
+                  'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              },
+          });
 
-            if (!response.ok) {
-                let errorMessage = 'Failed to delete page';
-                try {
-                    const errorData = await response.json();
-                    if (errorData && (errorData.message || errorData.error)) {
-                        errorMessage = errorData.message || errorData.error;
-                    }
-                } catch (jsonError) {
-                    console.error('Failed to parse error response JSON:', jsonError);
-                }
-                throw new Error(errorMessage);
-            }
+          if (!response.ok) {
+              let errorMessage = 'Failed to delete page';
+              try {
+                  const errorData = await response.json();
+                  if (errorData && (errorData.message || errorData.error)) {
+                      errorMessage = errorData.message || errorData.error;
+                  }
+              } catch (jsonError) {
+                  console.error('Failed to parse error response JSON:', jsonError);
+              }
+              throw new Error(errorMessage);
+          }
 
-            // On success, update local state
-            const updatedPresentation: Presentation = await response.json();
-            // Ensure pages are sorted after update from backend
-            if (updatedPresentation.pages) {
-                updatedPresentation.pages.sort((a, b) => a.page_order - b.page_order);
-            }
-            setPresentation(updatedPresentation);
+          // On success, update local state
+          const updatedPresentation: Presentation = await response.json();
+          // Ensure pages are sorted after update from backend
+          if (updatedPresentation.pages) {
+              updatedPresentation.pages.sort((a, b) => a.page_order - b.page_order);
+          }
+          setPresentation(updatedPresentation);
 
-        } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to delete page');
-        } finally {
-            setIsUpdatingState(false);
-        }
-    };
+      } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to delete page');
+      } finally {
+          setIsUpdatingState(false);
+      }
+  };
 
     const handleActivatePage = useCallback(async (pageId: string | null) => {
-        if (!presentationId) return;
+      if (!presentationId) return;
         
         // Avoid unnecessary updates if the page is already the target
         if (presentation?.current_page_id === pageId) {
@@ -1243,11 +1243,11 @@ const PresentationManagePage: React.FC = () => {
             return;
         }
 
-        setIsUpdatingState(true);
+      setIsUpdatingState(true); 
         setActivatingPageId(pageId); // Set which page is being activated
-        setError(null);
+      setError(null);
         
-        try {
+      try {
             const token = localStorage.getItem('token');
             if (!token) {
                 setError('Authentication token not found. Please log in again.');
@@ -1255,12 +1255,12 @@ const PresentationManagePage: React.FC = () => {
                 return;
             }
             
-            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/current-page`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
+          const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/current-page`, {
+              method: 'PUT',
+              headers: {
+                  'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
-                },
+              },
                 body: JSON.stringify({ pageId: pageId }), // Use pageId to match the server schema
             });
             
@@ -1292,81 +1292,81 @@ const PresentationManagePage: React.FC = () => {
                 throw new Error(errorMessage);
             }
             
-            const updatedPresentation: Presentation = await response.json();
-            setPresentation(updatedPresentation);
+          const updatedPresentation: Presentation = await response.json();
+          setPresentation(updatedPresentation);
             
             // Show feedback message (optional)
             const message = pageId ? 'Audience view set successfully' : 'Audience view cleared';
             console.log(message);
             
-        } catch (err) {
+      } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to update active page');
-        } finally {
-            setIsUpdatingState(false);
+      } finally {
+          setIsUpdatingState(false);
             setActivatingPageId(null); // Reset the activating page ID
-        }
+      }
     // Add dependencies for useCallback
     }, [presentationId, navigate, presentation?.current_page_id]);
 
-    // --- New Handler for Submitting Page Updates from Modal ---
-    const handleUpdatePage = async (pageId: string, data: { page_title?: string; page_config?: any }) => {
-        if (!presentationId || !presentation) return;
+  // --- New Handler for Submitting Page Updates from Modal ---
+  const handleUpdatePage = async (pageId: string, data: { page_title?: string; page_config?: any }) => {
+    if (!presentationId || !presentation) return;
 
-        setIsUpdatingState(true);
-        setError(null);
-        try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                setError('Authentication token not found. Please log in again.');
-                setIsUpdatingState(false);
-                navigate('/login');
-                return;
-            }
-            
-            const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/pages/${pageId}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify(data),
-            });
-
-            if (!response.ok) {
-                let errorMessage = 'Failed to update page';
-                if (response.status === 401 || response.status === 403) {
-                    errorMessage = 'Authentication failed. Please log in again.';
-                    navigate('/login');
-                }
-                try {
-                    const errorData = await response.json();
-                    if (errorMessage === 'Failed to update page' && errorData && (errorData.message || errorData.error)) {
-                        errorMessage = errorData.message || errorData.error;
-                    }
-                } catch (jsonError) {
-                    console.error('Failed to parse error response JSON:', jsonError);
-                }
-                throw new Error(errorMessage);
-            }
-
-            const updatedPresentationDataFromApi: Presentation = await response.json();
-
-            if (updatedPresentationDataFromApi.pages) {
-                updatedPresentationDataFromApi.pages.sort((a, b) => a.page_order - b.page_order);
-            }
-            
-            setPresentation(updatedPresentationDataFromApi);
-
-            setIsEditModalOpen(false);
-            setEditingPage(null);
-
-        } catch (error: any) {
-            console.error('Failed to update page:', error);
-            setError(error.message || 'An unexpected error occurred while updating the page.');
-        } finally {
+    setIsUpdatingState(true);
+    setError(null);
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            setError('Authentication token not found. Please log in again.');
             setIsUpdatingState(false);
+            navigate('/login');
+            return;
         }
-    };
+        
+        const response = await fetch(`http://localhost:8080/api/presentations/${presentationId}/pages/${pageId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            let errorMessage = 'Failed to update page';
+            if (response.status === 401 || response.status === 403) {
+                errorMessage = 'Authentication failed. Please log in again.';
+                navigate('/login');
+            }
+            try {
+                const errorData = await response.json();
+                if (errorMessage === 'Failed to update page' && errorData && (errorData.message || errorData.error)) {
+                    errorMessage = errorData.message || errorData.error;
+                }
+            } catch (jsonError) {
+                console.error('Failed to parse error response JSON:', jsonError);
+            }
+            throw new Error(errorMessage);
+        }
+
+        const updatedPresentationDataFromApi: Presentation = await response.json();
+
+        if (updatedPresentationDataFromApi.pages) {
+            updatedPresentationDataFromApi.pages.sort((a, b) => a.page_order - b.page_order);
+        }
+        
+        setPresentation(updatedPresentationDataFromApi);
+
+        setIsEditModalOpen(false);
+        setEditingPage(null);
+
+    } catch (error: any) {
+        console.error('Failed to update page:', error);
+        setError(error.message || 'An unexpected error occurred while updating the page.');
+    } finally {
+        setIsUpdatingState(false);
+    }
+};
 
     // --- New Handler for Updating Page Status ---
     const handleUpdatePageStatus = async (pageId: string, newStatus: 'active' | 'skipped') => {
@@ -1460,47 +1460,47 @@ const PresentationManagePage: React.FC = () => {
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to update all page statuses');
             setPresentation(prev => prev ? { ...prev, pages: originalPages } : null); // Revert
-        } finally {
-            setIsUpdatingState(false);
-        }
-    };
+    } finally {
+        setIsUpdatingState(false);
+    }
+};
 
-    // --- Render Functions ---
+  // --- Render Functions ---
 
-    const renderLoading = () => (
+  const renderLoading = () => (
         <div className="flex justify-center items-center h-64">
             <p className={`text-gray-500 ${isDarkMode ? 'dark:text-gray-400' : ''}`}>Loading presentation details...</p>
-        </div>
-    );
+      </div>
+  );
 
-    const renderError = () => (
+  const renderError = () => (
         <div className={`p-4 mb-4 text-sm rounded-lg ${isDarkMode ? 'bg-red-900 text-red-300' : 'bg-red-100 text-red-700'}`} role="alert">
             <span className="font-medium">Error!</span> {error}
-        </div>
-    );
+      </div>
+  );
 
-    const renderNotFound = () => (
+  const renderNotFound = () => (
         <div className={`p-4 mb-4 text-sm rounded-lg ${isDarkMode ? 'bg-yellow-900 text-yellow-300' : 'bg-yellow-100 text-yellow-700'}`} role="alert">
             <span className="font-medium">Not Found!</span> No presentation found with this ID.
             <button onClick={() => navigate('/')} className="ml-4 underline">Go Home</button>
-        </div>
-    );
+      </div>
+  );
 
     if (isLoading) return <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}><Header /><div className="container mx-auto p-4">{renderLoading()}</div></div>;
     if (error) return <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}><Header /><div className="container mx-auto p-4">{renderError()}</div></div>;
     if (!presentation) return <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900' : 'bg-gray-100'}`}><Header /><div className="container mx-auto p-4"><p>Something went wrong.</p></div></div>;
 
-    return (
+  return (
         <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'}`}>
-            <Header />
-            
+      <Header />
+      
             <div className="container mx-auto p-4">
                 {error && renderError()}
 
                 {/* Presentation Details */}
                 <div className={`mb-6 p-6 rounded-lg shadow ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
                     <div className="flex justify-between items-start mb-4">
-                        <div>
+                <div>
                              <h1 className="text-2xl font-bold">{presentation.title}</h1>
                              <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>State: <span className={`font-medium px-2 py-0.5 rounded-full text-xs ${presentation.state === 'active' ? (isDarkMode ? 'bg-green-800 text-green-200' : 'bg-green-100 text-green-800') : (isDarkMode ? 'bg-yellow-800 text-yellow-200' : 'bg-yellow-100 text-yellow-800')}`}>{presentation.state}</span></p>
                         </div>
@@ -1523,14 +1523,14 @@ const PresentationManagePage: React.FC = () => {
                                 >
                                     End Presentation
                                 </button>
-                            )}
+                   )}
                             <button 
                                 onClick={() => navigate('/presenter')}
                                 className={`px-4 py-2 rounded ${isDarkMode ? 'bg-gray-600 hover:bg-gray-500 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'}`}
                             >
                                 Back to List
                             </button>
-                        </div>
+                </div>
                     </div>
                      {/* Access Code - only show if active */}
                     {presentation.state === 'active' && presentation.access_code && (
@@ -1563,8 +1563,8 @@ const PresentationManagePage: React.FC = () => {
                                 Set All Skipped
                             </button>
                              {/* Present Button */}
-                             <button
-                                onClick={() => {
+                <button
+                   onClick={() => {
                                     const activePages = presentation.pages.filter(p => p.status === 'active');
                                     if (activePages.length > 0) {
                                          // Find the index of the current audience page among active pages
@@ -1581,13 +1581,13 @@ const PresentationManagePage: React.FC = () => {
                              >
                                  <Maximize2 size={16} />
                                 <span>Present Active Pages</span>
-                             </button>
-                         </div>
-                     </div>
+                </button>
+              </div>
+            </div>
 
                     {/* Add Page Form Toggle */}
                     <div className="mb-4">
-                        <button 
+                   <button 
                             onClick={() => setIsAddingPage(!isAddingPage)}
                             disabled={presentation.state !== 'draft'}
                             className={`px-4 py-2 text-sm rounded ${
@@ -1596,64 +1596,64 @@ const PresentationManagePage: React.FC = () => {
                                 : 'bg-green-100 hover:bg-green-200 text-green-800'
                             } disabled:opacity-50 disabled:cursor-not-allowed`}
                              title={presentation.state !== 'draft' ? "Cannot add pages unless presentation is in draft state" : "Add New Page"}
-                        >
+                   >
                             {isAddingPage ? 'Cancel Add Page' : '+ Add New Page'}
-                        </button>
-                    </div>
-
+                  </button>
+              </div>
+              
                     {/* Add Page Form */}
-                    {isAddingPage && (
+              {isAddingPage && (
                          <div className={`p-4 border rounded mb-4 ${isDarkMode ? 'border-gray-700 bg-gray-750' : 'border-gray-200 bg-gray-50'}`}>
                             <h3 className="text-lg font-medium mb-2">Add New Page</h3>
                             <div className="mb-3">
                                 <label className="block text-sm font-medium mb-1">Page Type:</label>
-                                <select 
-                                    value={newPageType} 
+                              <select 
+                                  value={newPageType} 
                                     onChange={(e) => setNewPageType(e.target.value as PageType | '')}
                                     className={`block w-full border rounded-md shadow-sm p-2 ${
                                         isDarkMode 
                                         ? 'dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:focus:ring-indigo-500 dark:focus:border-indigo-500' 
                                         : 'border-gray-300 focus:ring-indigo-500 focus:border-indigo-500'
                                     }`}
-                                >
+                              >
                                     <option value="">-- Select Type --</option>
                                     <option value="multi-choice">Multi-Choice</option>
-                                    <option value="poll">Poll</option>
+                                  <option value="poll">Poll</option>
                                     <option value="open-ended">Open-Ended</option>
                                     <option value="scales">Scales</option>
                                     <option value="ranking">Ranking</option>
-                                    <option value="word-cloud">Word Cloud</option>
-                                    <option value="q&a">Q&A</option>
-                                </select>
-                            </div>
+                                  <option value="word-cloud">Word Cloud</option>
+                                  <option value="q&a">Q&A</option>
+                              </select>
+                          </div>
                              {newPageType && (
                                 <PageConfigForm 
                                     type={newPageType} 
                                     onSubmit={handleAddPage} 
                                 />
                             )}
-                         </div>
-                    )}
+                  </div>
+              )}
 
                     {/* Pages List/Table */}
-                    <div className="overflow-x-auto">
+              <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                             <thead className={isDarkMode ? 'bg-gray-700' : 'bg-gray-50'}>
-                                <tr>
+                              <tr>
                                     <th scope="col" className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Order</th>
                                     <th scope="col" className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Title</th>
                                     <th scope="col" className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Type</th>
                                     <th scope="col" className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Config</th>
                                     <th scope="col" className={`px-4 py-3 text-left text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Status</th>
                                     <th scope="col" className={`px-4 py-3 text-center text-xs font-medium uppercase tracking-wider ${isDarkMode ? 'text-gray-300' : 'text-gray-500'}`}>Actions</th>
-                                </tr>
-                            </thead>
+                              </tr>
+                          </thead>
                              <tbody className={`divide-y ${isDarkMode ? 'divide-gray-700 bg-gray-800' : 'divide-gray-200 bg-white'}`}>
                                 {presentation.pages.length === 0 && (
                                     <tr>
                                         <td colSpan={6} className={`px-6 py-4 whitespace-nowrap text-sm text-center ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                                             No pages added yet.
-                                        </td>
+                                          </td>
                                     </tr>
                                 )}
                                 {presentation.pages.map((page, index) => (
@@ -1662,8 +1662,8 @@ const PresentationManagePage: React.FC = () => {
                                         <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">{page.page_title || `Page ${index + 1}`}</td>
                                         <td className="px-4 py-4 whitespace-nowrap text-sm">{page.page_type}</td>
                                         <td className="px-4 py-4 text-sm">
-                                             <FormattedPageConfig config={page.page_config} type={page.page_type} />
-                                        </td>
+                                               <FormattedPageConfig config={page.page_config} type={page.page_type} />
+                                          </td>
                                          <td className="px-4 py-4 whitespace-nowrap text-sm">
                                             <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                                                 page.status === 'active' 
@@ -1675,7 +1675,7 @@ const PresentationManagePage: React.FC = () => {
                                         </td>
                                         <td className="px-4 py-4 whitespace-nowrap text-sm text-center space-x-1">
                                             {/* Status Toggle Button */}
-                                            <button
+                                              <button
                                                  onClick={() => handleUpdatePageStatus(page.page_id, page.status === 'active' ? 'skipped' : 'active')}
                                                 disabled={presentation.state !== 'active'} // Can only change status when active
                                                 className={`px-2 py-1 text-xs rounded ${
@@ -1684,13 +1684,13 @@ const PresentationManagePage: React.FC = () => {
                                                      : (isDarkMode ? 'bg-green-700 hover:bg-green-600 text-green-100' : 'bg-green-100 hover:bg-green-200 text-green-800')
                                                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                                                 title={presentation.state !== 'active' ? "Presentation must be active to change status" : (page.status === 'active' ? 'Set to Skipped' : 'Set to Active')}
-                                            >
+                                              >
                                                  {page.status === 'active' ? 'Skip' : 'Activate'}
-                                             </button>
+                                              </button>
                                              
                                              {/* Edit Button */}
-                                            <button 
-                                                onClick={() => handleEditPage(page.page_id)}
+                                              <button 
+                                                  onClick={() => handleEditPage(page.page_id)}
                                                 disabled={presentation.state !== 'draft' && presentation.state !== 'active'} // Allow editing in draft or active
                                                 className={`px-2 py-1 text-xs rounded ${
                                                     isDarkMode 
@@ -1698,13 +1698,13 @@ const PresentationManagePage: React.FC = () => {
                                                     : 'bg-blue-100 hover:bg-blue-200 text-blue-800'
                                                 } disabled:opacity-50 disabled:cursor-not-allowed`}
                                                 title={(presentation.state !== 'draft' && presentation.state !== 'active') ? "Cannot edit unless presentation is draft or active" : "Edit Page"}
-                                            >
-                                                Edit
-                                            </button>
+                                              >
+                                                  Edit
+                                              </button>
                                             
                                             {/* Delete Button */}
-                                            <button 
-                                                onClick={() => handleDeletePage(page.page_id)} 
+                                              <button 
+                                                  onClick={() => handleDeletePage(page.page_id)}
                                                 disabled={presentation.state !== 'draft' && presentation.state !== 'active'} // Allow deleting in draft or active
                                                 className={`px-2 py-1 text-xs rounded ${
                                                     isDarkMode 
@@ -1712,27 +1712,27 @@ const PresentationManagePage: React.FC = () => {
                                                     : 'bg-red-100 hover:bg-red-200 text-red-800'
                                                 } disabled:opacity-50 disabled:cursor-not-allowed`}
                                                  title={(presentation.state !== 'draft' && presentation.state !== 'active') ? "Cannot delete unless presentation is draft or active" : "Delete Page"}
-                                           >
-                                                Delete
-                                            </button>
-                                        </td>
-                                    </tr>
+                                              >
+                                                  Delete
+                                              </button>
+                                          </td>
+                                      </tr>
                                 ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
+                          </tbody>
+                      </table>
+               </div>
             </div>
 
+        </div>
+        
             {/* Edit Page Modal */}
-            <EditPageModal
-                isOpen={isEditModalOpen}
-                onClose={() => setIsEditModalOpen(false)}
-                page={editingPage}
-                onSubmit={handleUpdatePage}
-                isLoading={isUpdatingState}
-            />
+        <EditPageModal 
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            page={editingPage}
+            onSubmit={handleUpdatePage}
+            isLoading={isUpdatingState}
+        />
             
             {/* Fullscreen Presentation */}
             {isFullscreenMode && presentation && (
@@ -1748,8 +1748,8 @@ const PresentationManagePage: React.FC = () => {
                     onNavigate={handleActivatePage} // Pass the callback to update audience view
                 />
             )}
-        </div>
-    );
+    </div>
+  );
 };
 
 export default PresentationManagePage; 
