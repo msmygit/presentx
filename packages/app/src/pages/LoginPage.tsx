@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useTheme } from '@/store/themeStore';
 import { Sun, Moon } from 'lucide-react';
 
@@ -126,6 +126,12 @@ const LoginPage: React.FC = () => {
               </button>
             </div>
           </form>
+          <p className="text-center text-sm mt-6">
+            Don't have an account?{' '}
+            <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">
+              Register here
+            </Link>
+          </p>
           
           <div className="mt-6">
             <div className="text-center">

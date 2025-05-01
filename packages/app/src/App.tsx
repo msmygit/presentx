@@ -9,7 +9,7 @@ import {
 import { useTheme } from './store/themeStore';
 import MainLayout from './components/Layout/MainLayout';
 import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
+import RegistrationPage from './pages/RegistrationPage';
 import PresenterPage from './pages/PresenterPage';
 import PresentationManagePage from './pages/PresentationManagePage';
 import PresentationPage from './pages/PresentationPage';
@@ -44,7 +44,7 @@ const App: React.FC = () => {
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/register" element={<RegistrationPage />} />
         <Route
           path="/presenter"
           element={

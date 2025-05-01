@@ -13,7 +13,7 @@ export interface UserDocument {
   _id: string; // Astra typically uses _id
   email: string;
   password: string; // Added for login check
-  name?: string; // Optional name
+  name?: string; // Optional name - REVERTED BACK TO THIS
   // Add other user fields like name, passwordHash, etc.
 }
 export type UsersCollection = Collection<UserDocument>;

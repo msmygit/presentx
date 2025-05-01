@@ -93,6 +93,6 @@ authRouter.post('/login', asyncHandler(async (req: Request, res: Response) => {
     res.status(200).json({ 
         message: 'Login successful', 
         token: token, 
-        user: { id: user._id, email: user.email, name: user.name } // Send basic user info
+        user: { id: user._id, email: user.email, name: (user as any).name } // Use name here, casting `user` is still needed due to UserDocument mismatch
     }); 
 })); 
