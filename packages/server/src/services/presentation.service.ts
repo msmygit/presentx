@@ -233,11 +233,12 @@ export async function setCurrentAudiencePage(
 
   // Validate pageId exists within the presentation if it's not null
   if (pageId !== null) {
-    const pageExists = presentationCheck.pages.some((page: Page) => page.page_id === pageId);
-    if (!pageExists) {
+    const pageObject = presentationCheck.pages.find((page: Page) => page.page_id === pageId); // Find the actual page object
+    if (!pageObject) { // Check if the object was found
       throw new Error(`Page ${pageId} not found in presentation ${presentationId}`);
     }
-    if (pageExists && pageExists.status === 'skipped') {
+    // Now check the status on the found object
+    if (pageObject.status === 'skipped') { 
         throw new Error(`Cannot set audience view to a skipped page (Page ID: ${pageId})`);
     }
   }
@@ -629,17 +630,19 @@ export async function updateAndBroadcastSummary(
             return page;
         });
         
-        // ---> ADD DETAILED LOGGING BEFORE UPDATE <---
-        console.log(`[updateAndBroadcastSummary] Attempting updateOne for _id: ${presentationId}`);
-        // Avoid logging the full pages array if it's huge, log its length and maybe the updated page
+        // ---> ADD MORE DETAILED LOGGING BEFORE UPDATE <---
+        console.log(`[updateAndBroadcastSummary] Re-confirming presentation _id before update: ID=${presentation._id}, Type=${typeof presentation._id}`);
+        console.log(`[updateAndBroadcastSummary] Value of presentationId variable: ID=${presentationId}, Type=${typeof presentationId}`);
+        
+        // Log structure confirmation (avoid huge arrays)
         const updatedPageIndex = updatedPages.findIndex(p => p.page_id === pageId);
         console.log(`[updateAndBroadcastSummary] Updated pages array length: ${updatedPages.length}`);
         if (updatedPageIndex !== -1) {
-             console.log(`[updateAndBroadcastSummary] Updated page data at index ${updatedPageIndex}:`, JSON.stringify(updatedPages[updatedPageIndex]));
+             console.log(`[updateAndBroadcastSummary] Updated page data at index ${updatedPageIndex}: audience_response_count=${updatedPages[updatedPageIndex].audience_response_count}, summary_keys=${Object.keys(updatedPages[updatedPageIndex].audience_summary ?? {}).join(',')}`);
         } else {
              console.error(`[updateAndBroadcastSummary] CRITICAL: Updated page ${pageId} not found in mapped array!`);
         }
-        console.log(`[updateAndBroadcastSummary] Data for $set: { pages: [${updatedPages.length} pages], updated_at: ... }`);
+        console.log(`[updateAndBroadcastSummary] Attempting updateOne with filter: { _id: ${presentationId} }`);
         // ---------------------------------------------
 
         // Use updateOne with ONLY _id filter to set the entire pages array
@@ -654,6 +657,7 @@ export async function updateAndBroadcastSummary(
         );
 
         // Check results (remains same)
+        console.log(`[updateAndBroadcastSummary] updateOne result: matchedCount=${updateResult.matchedCount}, modifiedCount=${updateResult.modifiedCount}`); // Log detailed result
         if (updateResult.matchedCount === 0) {
             console.error(`[updateAndBroadcastSummary] updateOne FAILED to match _id: ${presentationId}`);
             return; 

@@ -41,6 +41,7 @@ interface PresentationState {
   questions: NewQuestionEvent[];
   isConnected: boolean;
   isJoining: boolean;
+  isUpdatingPage: boolean; // Track page update state
   error: string | null;
   isSocketInitialized: boolean;
   isSubmittingResponse: boolean;
@@ -53,6 +54,7 @@ interface PresentationState {
   resetState: () => void;
   submitResponse: (pageId: string, responseData: SubmitResponseRequest['response_data']) => Promise<boolean>;
   initializeFromJoinData: (presentationData: Presentation) => void;
+  setCurrentAudiencePage: (pageId: string | null) => Promise<boolean>; // <-- New Action
 
   // Internal setters (optional, could be part of listeners)
   _setIsConnected: (status: boolean) => void;
@@ -77,6 +79,7 @@ const initialState = {
   error: null,
   isSocketInitialized: false,
   isSubmittingResponse: false,
+  isUpdatingPage: false, // Initial state
 };
 
 // --- Simple User ID Management --- 
@@ -174,7 +177,14 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
       console.log('Store: Page change event:', payload);
       const presentation = get().presentation;
       const newPage = presentation?.pages.find(p => p.page_id === payload.new_page_id) || null;
-      set({ currentPageId: payload.new_page_id, currentPage: newPage, currentSummary: null });
+      // Find the summary for the new page from the main presentation object
+      const newSummary = newPage?.audience_summary || null; 
+      console.log('Store: Setting new page and its existing summary:', newPage?.page_id, newSummary);
+      set({
+         currentPageId: payload.new_page_id,
+         currentPage: newPage,
+         currentSummary: newSummary // <-- Set summary from the page data
+      });
     };
 
     const handleSummaryUpdate = (payload: SummaryUpdateEvent) => {
@@ -384,5 +394,72 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         return false;
     }
   },
+
+  // --- New Action: Set Current Audience Page (Presenter Action) ---
+  setCurrentAudiencePage: async (pageId): Promise<boolean> => {
+    const currentId = get().presentationId;
+    if (!currentId || get().isUpdatingPage) {
+        console.warn('Cannot set current page. Conditions not met:', { currentId, isUpdating: get().isUpdatingPage });
+        return false;
+    }
+    // Prevent setting to the same page
+    if (pageId === get().currentPageId) {
+        console.log("Already on page:", pageId);
+        return true;
+    }
+
+    set({ isUpdatingPage: true, error: null });
+    console.log(`Store: Setting current audience page to ${pageId} for presentation ${currentId}`);
+
+    try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            throw new Error('Authentication token not found.');
+        }
+
+        const response = await fetch(`http://localhost:8080/api/presentations/${currentId}/current-page`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ pageId: pageId }), // Send pageId in the body
+        });
+
+        if (!response.ok) {
+            let errorMessage = 'Failed to set current page';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.message || errorMessage;
+            } catch { /* Ignore parsing error */ }
+             if (response.status === 401 || response.status === 403) {
+                // Special handling for auth errors? Redirect?
+                 errorMessage = 'Authentication failed. Please log in again.';
+            }
+            throw new Error(errorMessage);
+        }
+
+        const updatedPresentation: Presentation = await response.json();
+        
+        // --- Update store state based on successful API response ---
+        // The backend should broadcast the 'page_change' event, 
+        // which the handlePageChange listener will pick up to update currentPage.
+        // We just need to update the presentation object itself if needed,
+        // and reset the loading/error state.
+        set({ 
+            presentation: updatedPresentation, // Update the main presentation object
+            isUpdatingPage: false, 
+            error: null 
+        });
+        console.log(`Store: Successfully set current audience page to ${pageId}`);
+        return true;
+
+    } catch (error: any) {
+        console.error('Store: Error setting current audience page:', error);
+        set({ isUpdatingPage: false, error: error.message || 'An unknown error occurred.' });
+        return false;
+    }
+  },
+  // -------------------------------------------------------------
 
 })); 

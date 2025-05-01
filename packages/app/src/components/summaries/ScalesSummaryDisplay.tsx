@@ -32,6 +32,12 @@ const ScalesSummaryDisplay: React.FC<ScalesSummaryDisplayProps> = ({ summary, co
 
                     return (
                         <div key={value} className="flex flex-col items-center flex-1 h-full justify-end" title={`Value: ${value}, Count: ${count}`}>
+                            {/* Display count above the bar if count > 0 */} 
+                            {count > 0 && (
+                                <span className="text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                                    {count}
+                                </span>
+                            )}
                             <div 
                                 className="w-4/5 bg-primary transition-all duration-300 ease-out rounded-t"
                                 style={{ height: `${barHeight}%` }}
