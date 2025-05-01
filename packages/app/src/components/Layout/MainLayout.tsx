@@ -21,7 +21,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       {/* Example Footer */}
       <footer className="bg-neutral-200 dark:bg-neutral-700 p-4 text-center text-sm text-neutral-600 dark:text-neutral-400">
-        © 2025 Presentation App
+        © 2025 PresentX
       </footer>
     </div>
   );

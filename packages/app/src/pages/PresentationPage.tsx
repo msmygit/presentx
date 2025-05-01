@@ -96,14 +96,13 @@ const PresentationContent = React.memo(({ id, title, description, currentPage, c
                {renderPageView()} 
             </div>
 
-            {/* Summary (Optional Display) */} 
-            {currentSummary && (
+            {/* Summary (Optional Display) - REMOVED FOR AUDIENCE VIEW */} 
+            {/* {currentSummary && (
                 <div className="p-4 border-t border-gray-200 mt-4 bg-gray-50 rounded">
                     <h3 className="font-semibold text-gray-700 mb-2">Live Summary</h3>
-                    {/* Improve summary rendering later based on type */}
                     <pre className="text-xs bg-white p-2 rounded border">{JSON.stringify(currentSummary, null, 2)}</pre>
                 </div>
-            )}
+            )} */}
 
             {/* Questions (Optional Display) */} 
             {questions.length > 0 && (

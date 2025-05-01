@@ -505,8 +505,8 @@ const FullscreenPresentation: React.FC<FullscreenPresentationProps> = ({
                         {/* Use count from page data as it's updated atomically by server */}
                         Total Responses: {currentPage?.audience_response_count ?? 0} 
                     </div>
-                    <div className="flex-grow border border-gray-200 dark:border-gray-700 rounded-lg p-4 overflow-y-auto bg-gray-50 dark:bg-gray-800/50">
-                         {/* Call renderSummary with currentPage and the LIVE currentSummary from store */}
+                    <div className="flex-grow border border-gray-200 dark:border-gray-700 rounded-lg p-4 overflow-y-auto bg-gray-50 dark:bg-gray-800/50 flex flex-col justify-center">
+                         {/* Call renderSummary with currentPage and the LIVE currentSummary from store */} 
                          {renderSummary(currentPage, currentSummary)} 
                     </div>
                 </div>
