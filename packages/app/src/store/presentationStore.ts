@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { Socket } from 'socket.io-client';
-import { getSocket, connectSocket, disconnectSocket, joinPresentationRoom, leavePresentationRoom, SubmitResponsePayload } from '@/lib/socket';
-import { PageChangeEvent, SummaryUpdateEvent, AudienceCountUpdateEvent, NewQuestionEvent, Page, AudienceSummary, Presentation } from '@presentx/shared';
+import { getSocket, connectSocket, disconnectSocket, joinPresentationRoom, leavePresentationRoom } from '@/lib/socket';
+import { PageChangeEvent, SummaryUpdateEvent, AudienceCountUpdateEvent, NewQuestionEvent, Page, AudienceSummary, Presentation, SubmitResponseRequest, IndividualResponse } from '@presentx/shared';
 
 // Need to define the event interfaces used by the store
 // These should ideally match the definitions in server/src/utils/socket.ts
@@ -13,6 +13,21 @@ interface ServerToClientListeners {
   joined_presentation: (payload: { audienceCount: number }) => void; // <-- Added definition
   error: (payload: { message: string }) => void;
   // Add other server-to-client events the store needs to listen to
+}
+
+// Define ClientToServerEvents locally if not imported from shared
+// Ensure this EXACTLY matches the server definition
+interface ClientToServerEvents {
+  join_presentation: (presentationId: string) => void;
+  leave_presentation: (presentationId: string) => void;
+  submit_response: (
+    data: {
+      presentationId: string;
+      pageId: string;
+      responsePayload: SubmitResponseRequest;
+    },
+    callback: (error: string | null, result?: { success: boolean; responseId?: string }) => void
+  ) => void;
 }
 
 // Interface for the store's state
@@ -36,7 +51,7 @@ interface PresentationState {
   joinPresentation: (id: string) => Promise<void>; // Renamed from setPresentationId for clarity
   leaveCurrentPresentation: () => void;
   resetState: () => void;
-  submitResponse: (pageId: string, responseData: any) => Promise<boolean>;
+  submitResponse: (pageId: string, responseData: SubmitResponseRequest['response_data']) => Promise<boolean>;
   initializeFromJoinData: (presentationData: Presentation) => void;
 
   // Internal setters (optional, could be part of listeners)
@@ -79,18 +94,28 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   ...initialState,
 
   initializeFromJoinData: (presentationData) => {
-    console.log('Store: Initializing state from join data:', presentationData);
-    // Find the initial page based on the provided presentation data
-    const initialPageId = presentationData.current_page_id || presentationData.pages?.[0]?.page_id || null;
-    const initialPage = presentationData.pages.find(p => p.page_id === initialPageId) || null;
+    console.log('[Store initializeFromJoinData] Initializing with data:', presentationData?._id);
+    const initialPageId = presentationData?.current_page_id || presentationData?.pages?.[0]?.page_id || null;
+    const initialPage = presentationData?.pages.find(p => p.page_id === initialPageId) || null;
     set({
-      presentationId: presentationData._id,
+      presentationId: presentationData?._id ?? null, // Handle potential null presentationData
       presentation: presentationData,
       currentPageId: initialPageId,
       currentPage: initialPage,
-      error: null, // Clear any previous errors
-      // Keep isJoining false, as this isn't the full join process
+      isJoining: false,
+      error: null,
     });
+    // Connect socket AFTER setting presentation data
+    get().initializeSocket();
+    if (presentationData?._id) { // Only connect/join if we have an ID
+        if (!getSocket().connected) {
+            connectSocket(); 
+        }
+        joinPresentationRoom(presentationData._id).catch(err => {
+            console.error('[Store initializeFromJoinData] Error auto-joining room:', err);
+            set({ error: 'Failed to sync with presentation.' });
+        });
+    }
   },
 
   setPresentationId: (id) => {
@@ -289,9 +314,9 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
   _addQuestion: (question) => set(state => ({ questions: [...state.questions, question] })),
   _setPresentationData: (presentation) => set({ presentation }),
 
-  submitResponse: async (pageId: string, responseData: any): Promise<boolean> => {
+  submitResponse: async (pageId: string, responseData: SubmitResponseRequest['response_data']): Promise<boolean> => {
     const presentationId = get().presentationId;
-    const socket = getSocket();
+    const socket: Socket<any, ClientToServerEvents> = getSocket(); // Keep explicit typing
     if (!presentationId || !socket.connected || get().isSubmittingResponse) {
       console.warn('Cannot submit response. Conditions not met:', { presentationId, connected: socket.connected, submitting: get().isSubmittingResponse });
       return false;
@@ -300,36 +325,62 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     set({ isSubmittingResponse: true });
     console.log('Store: Submitting response for page', pageId, 'data:', responseData);
 
-    const payload: SubmitResponsePayload = {
-        presentation_id: presentationId,
-        page_id: pageId,
-        user_id: getUserId(), // Get the generated/stored user ID
+    const responsePayload: SubmitResponseRequest = {
+        user_id: getUserId(),
         response_data: responseData,
     };
 
+    // Construct payload matching server expectations
+    const eventPayload = {
+        presentationId: presentationId!, 
+        pageId: pageId,
+        responsePayload: responsePayload,
+    };
+
     try {
-        const success = await new Promise<boolean>((resolve) => {
-            // Add a timeout
+        const result = await new Promise<{ success: boolean; responseId?: string } | { error: string }>((resolve) => {
             const timeoutId = setTimeout(() => {
                 console.error('Response submission timed out.');
-                resolve(false);
-            }, 5000); // 5 second timeout
+                resolve({ error: 'timeout' });
+            }, 5000);
 
-            socket.emit('submit_response', payload, (ackSuccess: boolean) => {
-                clearTimeout(timeoutId);
-                console.log('Store: Response submission acknowledged:', ackSuccess);
-                resolve(ackSuccess);
-            });
+            // Emit with explicit event name type and inline callback with correct signature
+            socket.emit<'submit_response'>(
+                'submit_response',
+                eventPayload,
+                // Define callback inline with correct signature
+                (error: string | null, ackResult?: { success: boolean; responseId?: string }) => {
+                    clearTimeout(timeoutId); // timeoutId is now in scope
+                    if (error) {
+                        resolve({ error: error }); // resolve is now in scope
+                    } else if (ackResult?.success) {
+                        resolve({ success: true, responseId: ackResult.responseId });
+                    } else {
+                        resolve({ error: 'unknown_failure' });
+                    }
+                }
+            );
         });
-        
+
         set({ isSubmittingResponse: false });
-        if (!success) {
-            get()._setError('Failed to submit response. Please try again.');
+
+        // Check the resolved result object
+        if ('error' in result) {
+            let userMessage = 'Failed to submit response. Please try again.';
+            if (result.error === 'timeout') {
+                userMessage = 'Response submission timed out. Please try again.';
+            }
+            get()._setError(userMessage);
+            return false;
+        } else {
+             // Success!
+             console.log(`Successfully submitted response ${result.responseId}`);
+            return true;
         }
-        return success;
+
     } catch (error) {
-        console.error('Store: Error submitting response:', error);
-        set({ isSubmittingResponse: false, error: 'An error occurred while submitting the response.' });
+        console.error('Store: Error in submitResponse promise/logic:', error);
+        set({ isSubmittingResponse: false, error: 'An unexpected error occurred while submitting the response.' });
         return false;
     }
   },

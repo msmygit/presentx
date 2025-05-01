@@ -13,8 +13,8 @@ import {
   PageType,
   MultiChoiceSummary,
   WordCloudSummary,
-  RatingSummary,
-  OpenTextSummary,
+  ScalesSummary,
+  OpenEndedSummary,
   QnASummary,
 } from '@presentx/shared';
 import { GenericFindOneAndUpdateOptions } from '@datastax/astra-db-ts';
@@ -108,12 +108,11 @@ function calculateNewSummary(
             summary[choice] = (summary[choice] || 0) + 1;
             return summary;
         }
-        case 'rating': {
-            const summary = (currentSummary || { counts: {}, average: 0 }) as RatingSummary;
-            const rating = String(newResponseData); // Rating value (e.g., "3")
+        case 'scales': {
+            const summary = (currentSummary || { counts: {}, average: 0 }) as ScalesSummary;
+            const rating = String(newResponseData);
             summary.counts[rating] = (summary.counts[rating] || 0) + 1;
 
-            // Recalculate average (simple approach)
             let totalScore = 0;
             let totalVotes = 0;
             for (const [score, count] of Object.entries(summary.counts)) {
@@ -124,25 +123,20 @@ function calculateNewSummary(
             return summary;
         }
         case 'word-cloud': {
-            // Basic: count word occurrences. Needs more complex logic for stemming, stopwords etc.
             const summary = (currentSummary || { top_words: {} }) as WordCloudSummary;
-            const word = String(newResponseData).trim().toLowerCase().substring(0, 30); // Basic cleaning
+            const word = String(newResponseData).trim().toLowerCase().substring(0, 30);
             if (word) {
                  summary.top_words = summary.top_words || {};
                  summary.top_words[word] = (summary.top_words[word] || 0) + 1;
-                // In production, might only keep top N words or use a more sophisticated structure
             }
             return summary;
         }
-         case 'q&a': { // Only tracks count via response_count
-            // Raw questions are added via response submission, summary might be empty or track count
-            // The 'new_question' broadcast happens separately in addResponse
+         case 'q&a': {
             return (currentSummary || {}) as QnASummary;
          }
-        case 'open-text':
+        case 'open-ended':
         default:
-            // These types might only rely on the response count, not a visual summary object
-            return (currentSummary || {}) as OpenTextSummary; // Return empty object
+            return (currentSummary || {}) as OpenEndedSummary;
     }
 }
 
@@ -152,14 +146,14 @@ export async function addResponse(
   presentationId: string,
   pageId: string,
   responseInput: SubmitResponseRequest
-): Promise<void> {
+): Promise<IndividualResponse> {
   const presentationsCollection = getPresentationsCollection();
   const responsesCollection = getPageResponsesCollection();
 
-  // 1. Find the presentation and the specific page
+  // 1. Find the presentation using the correct ID field (_id)
   const presentation = await presentationsCollection.findOne({
-    presentation_id: presentationId,
-    // Optionally add: state: 'active'
+    _id: presentationId,
+    // state: 'active' // Add this if only active presentations can receive responses
   });
 
   if (!presentation) {
@@ -205,49 +199,13 @@ export async function addResponse(
       // throw new Error('Failed to add response to the active batch. Please try again.');
   }
 
-  // 5. Calculate New Summary
-  // const newSummary = calculateNewSummary(currentPage, newResponse.response_data, currentPage.audience_summary);
+  // 6. Return the created response object
+  return newResponse;
 
-  // 6. Update Presentation Summary (Atomically)
-  // Use $set with arrayFilters to update the specific page's summary and count
-  /* // REMOVED
-  const newTotalResponseCount = currentPage.audience_response_count + 1;
-  const presentationUpdateResult = await presentationsCollection.updateOne(
-    {
-      _id: presentation._id,
-      'pages.page_id': pageId,
-    },
-    {
-      $set: {
-        [`pages.${pageIndex}.audience_summary`]: newSummary,
-        [`pages.${pageIndex}.audience_response_count`]: newTotalResponseCount,
-        updated_at: new Date().toISOString(),
-      },
-    }
-    // Consider adding optimistic locking field if needed for high concurrency
-  );
-
-  if (presentationUpdateResult.matchedCount === 0) {
-      // This should ideally not happen if presentation/page were found initially
-      console.error(`Failed to update summary for presentation ${presentationId}, page ${pageId}. Match count 0.`);
-      // Potentially revert the batch update or log for manual reconciliation
-      throw new Error('Failed to update presentation summary.');
-  }
-  */
-
-  // 7. Broadcast Updates via WebSocket
-  // broadcastSummaryUpdate(presentationId, pageId, newSummary, newTotalResponseCount);
-
-  // ---> NEW: Trigger background summary update and broadcast <---
-  // We don't await this, let it run in the background
-  if (presentation._id) {
-      updateAndBroadcastSummary(presentation._id.toString(), pageId).catch(err => { 
-          console.error(`[addResponse] Background summary update failed for pId ${presentation._id}, pageId ${pageId}:`, err);
-      });
-  } else {
-      console.error(`[addResponse] Cannot trigger summary update because presentation._id is missing for pId ${presentationId}`);
-  }
-  // --------------------------------------------------------------
+  // 7. Trigger Summary Update (Non-blocking - moved to socket.ts after this function returns)
+  // updateAndBroadcastSummary(presentationId, pageId).catch(err => {
+  //     console.error(`Error in background summary update for ${presentationId}/${pageId}: ${err}`);
+  // });
 
   // Handle specific page type broadcasts (e.g., new Q&A question)
   if (currentPage.page_type === 'q&a') {

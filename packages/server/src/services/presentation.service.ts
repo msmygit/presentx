@@ -10,20 +10,18 @@ import {
   AddPageRequest,
   PageType,
   AudienceSummary,
-  OpenTextSummary,
+  OpenEndedSummary,
   MultiChoiceSummary,
   WordCloudSummary,
-  RatingSummary,
+  ScalesSummary,
   QnASummary,
   IndividualResponse,
   PageResponseBatch,
   SubmitResponseRequest,
-  ScalesSummary,
   RankingSummary,
-  OpenEndedSummary,
   RankingConfig,
 } from '@presentx/shared';
-import { broadcastPageChange, broadcastSummaryUpdate } from '../utils/socket';
+import { broadcastSummaryUpdate, broadcastPageChange } from '../utils/socket';
 import { getPageResponsesCollection } from '../db/astra-client'; // <-- Import response collection getter
 
 // Simple random code generator (replace with something more robust if needed)
@@ -107,9 +105,12 @@ export async function findPresentationByAccessCode(
 ): Promise<Presentation | null> {
   console.log(`[Service findPresentationByAccessCode] Searching for code: ${accessCode}`);
   const collection = getPresentationsCollection();
-  const query = { access_code: accessCode, state: 'active' };
+  // Explicitly type the state property to match Presentation type
+  const query: Partial<Presentation> = { access_code: accessCode, state: 'active' };
   console.log(`[Service findPresentationByAccessCode] Executing query: ${JSON.stringify(query)}`);
-  const result = await collection.findOne(query);
+  // Use CollectionFilter<Presentation> for type safety if needed and available
+  // const result = await collection.findOne(query as CollectionFilter<Presentation>);
+  const result = await collection.findOne(query); 
   console.log(`[Service findPresentationByAccessCode] Query result: ${result ? `Found ID ${result._id}` : 'Not Found'}`);
   return result;
 }
@@ -206,7 +207,7 @@ export async function updatePresentationState(
 
   // Broadcast page change if activating or completing
   if (result && (newState === 'active' || newState === 'completed')) {
-      // Pass the correct presentation ID (_id) to broadcast
+      // Call the correct broadcast function with the correct payload
       broadcastPageChange(presentationId, updateData.current_page_id ?? null);
   }
 
@@ -252,8 +253,9 @@ export async function setCurrentAudiencePage(
     { returnDocument: 'after' }
   );
 
-  // Broadcast the change using the presentation's _id
+  // Broadcast the page change
   if (result) {
+    // Call the correct broadcast function with the correct payload
     broadcastPageChange(presentationId, pageId);
   }
 
@@ -617,30 +619,52 @@ export async function updateAndBroadcastSummary(
 
         console.log(`[updateAndBroadcastSummary] Calculated new summary for page ${pageId}:`, JSON.stringify(newSummary));
 
-        // 5. Update the Presentation Document
+        // 5. Update the Presentation Document using Fetch-Modify-Replace with simple filter
+        
+        // Create the updated pages array (same as before)
+        const updatedPages = presentation.pages.map((page: Page) => {
+            if (page.page_id === pageId) {
+                return { ...page, audience_summary: newSummary, audience_response_count: totalResponseCount };
+            }
+            return page;
+        });
+        
+        // ---> ADD DETAILED LOGGING BEFORE UPDATE <---
+        console.log(`[updateAndBroadcastSummary] Attempting updateOne for _id: ${presentationId}`);
+        // Avoid logging the full pages array if it's huge, log its length and maybe the updated page
+        const updatedPageIndex = updatedPages.findIndex(p => p.page_id === pageId);
+        console.log(`[updateAndBroadcastSummary] Updated pages array length: ${updatedPages.length}`);
+        if (updatedPageIndex !== -1) {
+             console.log(`[updateAndBroadcastSummary] Updated page data at index ${updatedPageIndex}:`, JSON.stringify(updatedPages[updatedPageIndex]));
+        } else {
+             console.error(`[updateAndBroadcastSummary] CRITICAL: Updated page ${pageId} not found in mapped array!`);
+        }
+        console.log(`[updateAndBroadcastSummary] Data for $set: { pages: [${updatedPages.length} pages], updated_at: ... }`);
+        // ---------------------------------------------
+
+        // Use updateOne with ONLY _id filter to set the entire pages array
         const updateResult = await presentationsCollection.updateOne(
-            { _id: presentationId, 'pages.page_id': pageId },
+            { _id: presentationId }, // Filter ONLY by _id
             {
                 $set: {
-                    [`pages.${pageIndex}.audience_summary`]: newSummary,
-                    [`pages.${pageIndex}.audience_response_count`]: totalResponseCount,
+                    pages: updatedPages, // Replace the whole array
                     updated_at: new Date().toISOString(),
                 }
             }
         );
 
+        // Check results (remains same)
         if (updateResult.matchedCount === 0) {
-            console.error(`[updateAndBroadcastSummary] Failed to match presentation/page for update. pId: ${presentationId}, pageId: ${pageId}`);
-            return; // Stop if update failed
+            console.error(`[updateAndBroadcastSummary] updateOne FAILED to match _id: ${presentationId}`);
+            return; 
         }
         if (updateResult.modifiedCount === 0) {
-             console.warn(`[updateAndBroadcastSummary] Presentation document was matched but not modified. pId: ${presentationId}, pageId: ${pageId}`);
-             // This might happen if the summary and count haven't actually changed.
+             console.warn(`[updateAndBroadcastSummary] Presentation document was matched but not modified during summary update. pId: ${presentationId}, pageId: ${pageId}`);
         }
 
         console.log(`[updateAndBroadcastSummary] Successfully updated summary in DB for page ${pageId}.`);
 
-        // 6. Broadcast the Update
+        // 6. Broadcast the Update (remains same)
         broadcastSummaryUpdate(presentationId, pageId, newSummary, totalResponseCount);
         console.log(`[updateAndBroadcastSummary] Broadcasted summary update for page ${pageId}.`);
 

@@ -1,5 +1,9 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@presentx/shared": ["packages/shared/src/types.ts"]
+    },
     // Base options - can be adjusted
     "target": "ES2016",
     "module": "CommonJS",
@@ -12,5 +16,6 @@
     "declaration": true,
     "sourceMap": true,
     "composite": true // Important for project references if used
-  }
+  },
+  "exclude": ["node_modules", "**/node_modules", "**/dist"]
 } 

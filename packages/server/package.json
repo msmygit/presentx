@@ -15,6 +15,7 @@
   "license": "ISC",
   "dependencies": {
     "@datastax/astra-db-ts": "^2.0.1",
+    "@presentx/shared": "^1.0.0",
     "@types/bcrypt": "^5.0.2",
     "@types/jsonwebtoken": "^9.0.9",
     "bcrypt": "^5.1.1",
