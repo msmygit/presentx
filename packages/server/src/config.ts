@@ -38,7 +38,7 @@ const envSchema = z.object({
       z.string({ required_error: "ASTRA_DB_TOKEN is required" }).startsWith('AstraCS:')
   ),
   astraDbNamespace: z.preprocess(
-      (val) => process.env.ASTRA_DB_NAMESPACE ?? val,
+      (val) => process.env.ASTRA_DB_KEYSPACE ?? val,
       z.string().optional()
   ),
   // Add collection names

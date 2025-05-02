@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useTheme } from '@/store/themeStore';
 import { Sun, Moon } from 'lucide-react';
+import config from '../config';
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -17,7 +18,7 @@ const LoginPage: React.FC = () => {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:8080/api/auth/login', {
+      const response = await fetch(`${config.api.fullUrl}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

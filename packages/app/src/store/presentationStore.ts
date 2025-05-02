@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Socket } from 'socket.io-client';
 import { getSocket, connectSocket, disconnectSocket, joinPresentationRoom, leavePresentationRoom } from '@/lib/socket';
 import { PageChangeEvent, SummaryUpdateEvent, AudienceCountUpdateEvent, NewQuestionEvent, Page, AudienceSummary, Presentation, SubmitResponseRequest, IndividualResponse } from '@presentx/shared';
+import config from '../config';
 
 // Need to define the event interfaces used by the store
 // These should ideally match the definitions in server/src/utils/socket.ts
@@ -470,7 +471,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
             throw new Error('Authentication token not found.');
         }
 
-        const response = await fetch(`http://localhost:8080/api/presentations/${currentId}/current-page`, {
+        const response = await fetch(`${config.api.fullUrl}/presentations/${currentId}/current-page`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
