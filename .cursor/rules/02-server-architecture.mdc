@@ -3,3 +3,21 @@ description:
 globs:
 alwaysApply: false
 ---
+# Server Architecture (`packages/server`)
+
+The backend server uses Node.js, Express, TypeScript, and Socket.IO.
+
+**Key Files & Directories:**
+
+*   **`src/index.ts` ([packages/server/src/index.ts](mdc:packages/server/src/index.ts))**: Main entry point. Initializes Express, Socket.IO, CORS, connects to the database, mounts routes, and sets up the global error handler.
+*   **`src/config.ts` ([packages/server/src/config.ts](mdc:packages/server/src/config.ts))**: Loads and validates environment variables from [packages/server/.env](mdc:packages/server/.env) using Zod. Maps environment variables (UPPER_SNAKE_CASE) to camelCase config values.
+*   **`src/db/astra-client.ts` ([packages/server/src/db/astra-client.ts](mdc:packages/server/src/db/astra-client.ts))**: Handles the connection to Astra DB using the `@datastax/astra-db-ts` driver. Provides helper functions to get typed collection instances.
+*   **`src/routes/presentations.routes.ts` ([packages/server/src/routes/presentations.routes.ts](mdc:packages/server/src/routes/presentations.routes.ts))**: Defines the API endpoints related to presentations (CRUD, joining, submitting responses, state changes). Uses Zod for input validation and includes the main error handler middleware.
+*   **`src/services/presentation.service.ts` ([packages/server/src/services/presentation.service.ts](mdc:packages/server/src/services/presentation.service.ts))**: Contains business logic for managing presentations (creating, finding, updating state, adding pages).
+*   **`src/services/response.service.ts` ([packages/server/src/services/response.service.ts](mdc:packages/server/src/services/response.service.ts))**: Handles the logic for receiving audience responses, managing response batching in the `page_responses` collection, and calculating/updating denormalized summaries in the `presentations` collection.
+*   **`src/utils/socket.ts` ([packages/server/src/utils/socket.ts](mdc:packages/server/src/utils/socket.ts))**: Manages the Socket.IO server instance, handles client connections, room joining/leaving (based on `presentationId`), and provides helper functions to broadcast events (e.g., `page_change`, `summary_update`) to specific rooms.
+
+**Database Collections:**
+
+*   `presentations`: Stores presentation metadata, page structure, and denormalized summaries.
+*   `page_responses`: Stores raw individual audience responses, batched per page to avoid array limits.
