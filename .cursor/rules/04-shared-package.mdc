@@ -3,16 +3,3 @@ description:
 globs:
 alwaysApply: false
 ---
-# Shared Package (`packages/shared`)
-
-This package's primary purpose is to define TypeScript types and interfaces that are used by both the frontend (`packages/app`) and the backend (`packages/server`). This ensures consistency in data structures across the application.
-
-**Key Files:**
-
-*   **`src/types.ts` ([packages/shared/src/types.ts](mdc:packages/shared/src/types.ts))**: Defines the core interfaces for:
-    *   Database models (`Presentation`, `Page`, `PageResponseBatch`, `IndividualResponse`).
-    *   Page configurations and summaries (`PageConfig`, `AudienceSummary` and their specific variants like `MultiChoiceConfig`, `MultiChoiceSummary`, etc.).
-    *   API request/response payloads (`CreatePresentationRequest`, `SubmitResponseRequest`, `JoinPresentationResponse`, etc.).
-    *   WebSocket event payloads (`PageChangeEvent`, `SummaryUpdateEvent`, etc.).
-
-This package has minimal runtime code and mainly consists of type definitions.

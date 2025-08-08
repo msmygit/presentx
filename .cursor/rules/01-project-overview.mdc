@@ -3,14 +3,3 @@ description:
 globs:
 alwaysApply: false
 ---
-# PresentX Monorepo Overview
-
-This is a monorepo for the PresentX application, managed using npm workspaces. It contains the following main packages:
-
-*   **`packages/app`**: Contains the React Native/Expo frontend application ([packages/app/package.json](mdc:packages/app/package.json)). Built with Expo Router for navigation and React Native Paper for UI components.
-*   **`packages/server`**: Contains the Node.js/Express backend server ([packages/server/package.json](mdc:packages/server/package.json)). Handles API requests, WebSocket communication, and interacts with Astra DB.
-*   **`packages/shared`**: Contains shared TypeScript types and interfaces ([packages/shared/package.json](mdc:packages/shared/package.json)) used by both the app and server packages, primarily defined in [packages/shared/src/types.ts](mdc:packages/shared/src/types.ts).
-
-The main entry points for development are:
-*   Server: `npm run dev:server` (defined in [package.json](mdc:package.json))
-*   App: `npm run dev:app` (defined in [package.json](mdc:package.json))

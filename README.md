@@ -1,6 +1,6 @@
 # PresentX
 
-![Intro](./assets/Introducing_PresentX.mp4)
+![Intro](./asserts/Introducing_PresentX.mp4)
 
 ## Install
 
